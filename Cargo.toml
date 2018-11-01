@@ -1,0 +1,29 @@
+[package]
+name = "rocket_oauth2"
+version = "0.0.4"
+description = "OAuth2 for Rocket applications"
+documentation = "https://docs.rs/rocket_oauth2/"
+homepage = "https://github.com/jebrosen/rocket_oauth2"
+repository = "https://github.com/jebrosen/rocket_oauth2"
+authors = ["Jeb Rosen <jeb@jebrosen.com>"]
+license = "MIT/Apache2.0"
+edition = "2018"
+
+[workspace]
+members = ["examples/user_info_hyper_sync_rustls"]
+
+[features]
+default = ["hyper_sync_rustls_adapter"]
+hyper_sync_rustls_adapter = ["hyper", "hyper-sync-rustls"]
+
+[dependencies]
+log = "0.4"
+rand = "0.5"
+rocket = "0.4.0-rc.1"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+url = "1.7"
+
+# hyper-sync-rustls adapter
+hyper = { version = "0.10", optional = true }
+hyper-sync-rustls = { version = "0.3.0-rc.4", optional = true }
