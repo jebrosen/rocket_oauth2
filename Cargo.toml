@@ -6,7 +6,7 @@ documentation = "https://docs.rs/rocket_oauth2/"
 homepage = "https://github.com/jebrosen/rocket_oauth2"
 repository = "https://github.com/jebrosen/rocket_oauth2"
 authors = ["Jeb Rosen <jeb@jebrosen.com>"]
-license = "MIT/Apache2.0"
+license = "MIT/Apache-2.0"
 edition = "2018"
 
 [workspace]
