@@ -127,8 +127,13 @@
 
 #![warn(future_incompatible, nonstandard_style, missing_docs)]
 
+mod config;
 mod core;
+mod provider;
+
+pub use self::config::*;
 pub use self::core::*;
+pub use self::provider::*;
 
 #[cfg(feature = "hyper_sync_rustls_adapter")]
 pub mod hyper_sync_rustls_adapter;
