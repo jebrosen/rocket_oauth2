@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use rocket::config::{self, Config, ConfigError, Table, Value};
 
 use crate::Provider;
@@ -20,7 +18,7 @@ fn get_config_string(table: &Table, key: &str) -> config::Result<String> {
 
     let string = value
         .as_str()
-        .ok_or_else(|| ConfigError::BadType(key.into(), "string", value.type_str(), "".into()))?;
+        .ok_or_else(|| ConfigError::BadType(key.into(), "string", value.type_str(), None))?;
 
     Ok(string.to_string())
 }
@@ -49,7 +47,7 @@ impl OAuthConfig {
             .ok_or_else(|| ConfigError::Missing(name.to_string()))?;
 
         let table = conf.as_table().ok_or_else(|| {
-            ConfigError::BadType(name.into(), "table", conf.type_str(), "".into())
+            ConfigError::BadType(name.into(), "table", conf.type_str(), None)
         })?;
 
         let provider = match conf.get("provider") {
@@ -97,7 +95,7 @@ impl Provider {
                 "provider".into(),
                 "known provider or table",
                 "",
-                PathBuf::new(),
+                None,
             )
         };
 
