@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::collections::HashMap;
 use std::fmt::Debug;
 
@@ -113,27 +112,18 @@ impl<A: Adapter, C: Callback> OAuth2<A, C> {
     /// Returns an OAuth2 fairing. The fairing will place an instance of
     /// `OAuth2<A, C>` in managed state and mount a redirect handler. It will
     /// also mount a login handler if `login` is `Some`.
-    pub fn fairing<CN, CU, LU, LS>(
+    pub fn fairing(
         adapter: A,
         callback: C,
-        config_name: CN,
-        callback_uri: CU,
-        login: Option<(LU, Vec<LS>)>,
-    ) -> impl Fairing
-    where
-        CN: Into<Cow<'static, str>>,
-        CU: Into<Cow<'static, str>>,
-        LU: Into<Cow<'static, str>>,
-        LS: Into<String>,
-    {
-        let config_name = config_name.into();
-        let callback_uri = callback_uri.into();
-        let mut login = login.map(|login| {
-            (
-                login.0.into(),
-                login.1.into_iter().map(Into::into).collect(),
-            )
-        });
+        config_name: &str,
+        callback_uri: &str,
+        login: Option<(&str, Vec<String>)>,
+    ) -> impl Fairing {
+        // Unfortunate allocations, but necessary because on_attach requires 'static
+        let config_name = config_name.to_string();
+        let callback_uri = callback_uri.to_string();
+        let mut login = login.map(|(lu, ls)| (lu.to_string(), ls));
+
         AdHoc::on_attach("OAuth Init", move |rocket| {
             let config = match OAuthConfig::from_config(rocket.config(), &config_name) {
                 Ok(c) => c,
@@ -143,18 +133,18 @@ impl<A: Adapter, C: Callback> OAuth2<A, C> {
                 }
             };
 
-            let login = login
-                .as_mut()
-                .map(|l: &mut (Cow<'static, str>, Vec<String>)| {
-                    (l.0.as_ref(), l.1.drain(..).collect())
-                });
+            let mut new_login = None;
+            if let Some((lu, ls)) = login.as_mut() {
+                let new_ls = std::mem::replace(ls, vec![]);
+                new_login = Some((lu.as_str(), new_ls));
+            };
 
             Ok(rocket.attach(Self::custom(
                 adapter,
                 callback,
                 config,
                 &callback_uri,
-                login,
+                new_login,
             )))
         })
     }

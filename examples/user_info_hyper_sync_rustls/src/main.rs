@@ -141,14 +141,14 @@ fn main() {
             github_callback,
             "github",
             "/auth/github",
-            Some(("/login/github", vec!["user:read"])),
+            Some(("/login/github", vec!["user:read".to_string()])),
         ))
         .attach(OAuth2::fairing(
             HyperSyncRustlsAdapter,
             google_callback,
             "google",
             "/auth/google",
-            Some(("/login/google", vec!["profile"])),
+            Some(("/login/google", vec!["profile".to_string()])),
         ))
         .launch();
 }

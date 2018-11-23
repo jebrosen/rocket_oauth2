@@ -119,7 +119,7 @@
 //!     "/auth/github",
 //!
 //!     // Set up a redirect from /login/github that will request the 'user:read' scope
-//!     Some(("/login/github", vec!["user:read"])),
+//!     Some(("/login/github", vec!["user:read".to_string()])),
 //! ))
 //! # ;
 //! # }
