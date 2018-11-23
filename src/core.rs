@@ -105,7 +105,7 @@ pub struct OAuth2<A, C> {
     adapter: A,
     callback: C,
     config: OAuthConfig,
-    default_scopes: Vec<String>,
+    login_scopes: Vec<String>,
 }
 
 impl<A: Adapter, C: Callback> OAuth2<A, C> {
@@ -168,17 +168,17 @@ impl<A: Adapter, C: Callback> OAuth2<A, C> {
             redirect_handler::<A, C>,
         ));
 
-        let mut default_scopes = vec![];
-        if let Some((login_uri, login_scopes)) = login {
-            routes.push(Route::new(Method::Get, login_uri, login_handler::<A, C>));
-            default_scopes = login_scopes;
+        let mut login_scopes = vec![];
+        if let Some((uri, scopes)) = login {
+            routes.push(Route::new(Method::Get, uri, login_handler::<A, C>));
+            login_scopes = scopes;
         }
 
         let oauth2 = Self {
             adapter,
             callback,
             config,
-            default_scopes,
+            login_scopes,
         };
 
         AdHoc::on_attach("OAuth Mount", |rocket| {
@@ -275,6 +275,6 @@ fn login_handler<'r, A: Adapter, C: Callback>(
         Outcome::Forward(()) => unreachable!(),
     };
     let mut cookies = request.guard::<Cookies<'_>>().expect("request cookies");
-    let scopes: Vec<_> = oauth.default_scopes.iter().map(String::as_str).collect();
+    let scopes: Vec<_> = oauth.login_scopes.iter().map(String::as_str).collect();
     handler::Outcome::from(request, oauth.get_redirect(&mut cookies, &scopes))
 }
