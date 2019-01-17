@@ -11,20 +11,22 @@ pub struct Provider {
 
 macro_rules! providers {
     (@ $(($name:ident $docstr:expr) : $auth:expr, $token:expr),*) => {
-        $(
-            #[doc = $docstr]
-            #[allow(non_upper_case_globals)]
-            pub const $name: Provider = Provider {
-                auth_uri: Cow::Borrowed($auth),
-                token_uri: Cow::Borrowed($token),
-            };
-        )*
+        impl Provider {
+            $(
+                #[doc = $docstr]
+                #[allow(non_upper_case_globals)]
+                pub const $name: Provider = Provider {
+                    auth_uri: Cow::Borrowed($auth),
+                    token_uri: Cow::Borrowed($token),
+                };
+            )*
+        }
 
         impl Provider {
             pub(crate) fn from_known_name(name: &str) -> Option<Provider> {
                 match name {
                     $(
-                        stringify!($name) => Some($name),
+                        stringify!($name) => Some(Provider::$name),
                     )*
                     _ => None,
                 }

@@ -99,7 +99,7 @@
 //! # use rocket::Request;
 //! # use rocket::response::Redirect;
 //! use rocket::fairing::AdHoc;
-//! use rocket_oauth2::{Callback, OAuth2, OAuthConfig, GitHub, TokenResponse};
+//! use rocket_oauth2::{Callback, OAuth2, OAuthConfig, TokenResponse};
 //! use rocket_oauth2::hyper_sync_rustls_adapter::HyperSyncRustlsAdapter;
 //!
 //! # fn github_callback(request: &Request, token: TokenResponse)
