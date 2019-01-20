@@ -29,22 +29,22 @@
 //! This crate is designed around 2 traits: [`Callback`] and [`Adapter`]. The
 //! [`Adapter`] trait is implemented by types that can generate authorization
 //! URLs and perform token exchanges. The [`Callback`] trait is implemented by
-//! Rocket applications to perform application-specific actions when a token has
-//! been exchanged successfully.
+//! applications to perform actions when a token has been exchanged
+//! successfully.
 //!
-//! Generally, a Rocket application will implement [`Callback`] on one type per
-//! service the application will connect to. The [`OAuth2`] type registers
-//! routes and handlers in the application for the OAuth2 redirect and an
-//! optional login handler for convenience.
+//! Generally, a Rocket application will only need to implement [`Callback`],
+//! once per service the application will connect to. The [`OAuth2`] type
+//! registers routes and handlers in the application for the OAuth2 redirect and
+//! an optional login handler for convenience.
 //!
-//! ## Implementations
+//! ## Adapter Implementations
 //!
 //! `rocket_oauth2` currently provides only one [`Adapter`] itself:
 //!
-//! * `hyper_sync_rustls`: Uses [`hyper-sync-rustls`](https://github.com/SergioBenitez/hyper-sync-rustls).
+//! * `hyper_rustls`: Uses [`hyper-rustls`](https://github.com/ctz/hyper-rustls).
 //!
-//! `hyper_sync_rustls` was chosen because it is already a dependency of Rocket.
-//! In general, custom `Adapter`s should only be needed to work around
+//! `hyper_rustls` was chosen because it uses *ring*, which Rocket already
+//! depends on. Usually, custom `Adapter`s should only be needed to work around
 //! non-compliant service providers.
 //!
 //! ## Usage
@@ -62,12 +62,12 @@
 //! # extern crate rocket_oauth2;
 //! # use rocket::http::{Cookie, Cookies, SameSite};
 //! # use rocket::Request;
-//! # use rocket::response::Redirect;
+//! # use rocket::response::{Redirect, Responder, ResultFuture};
 //! use rocket_oauth2::{Callback, OAuth2, TokenResponse};
-//! use rocket_oauth2::hyper_sync_rustls_adapter::HyperSyncRustlsAdapter;
+//! use rocket_oauth2::hyper_rustls_adapter::HyperRustlsAdapter;
 //!
-//! fn github_callback(request: &Request, token: TokenResponse)
-//!     -> Result<Redirect, Box<::std::error::Error>>
+//! fn github_callback<'r>(request: &'r Request, token: TokenResponse)
+//!     -> ResultFuture<'r>
 //! {
 //!     let mut cookies = request.guard::<Cookies>().expect("request cookies");
 //!
@@ -77,7 +77,7 @@
 //!             .same_site(SameSite::Lax)
 //!             .finish()
 //!     );
-//!     Ok(Redirect::to("/"))
+//!     Redirect::to("/").respond_to(request)
 //! }
 //! ```
 //!
@@ -95,15 +95,16 @@
 //! ```rust
 //! # extern crate rocket;
 //! # extern crate rocket_oauth2;
+//! # use std::pin::Pin;
+//! # use std::future::Future;
 //! # use rocket::http::{Cookie, Cookies, SameSite};
 //! # use rocket::Request;
-//! # use rocket::response::Redirect;
+//! # use rocket::response::ResultFuture;
 //! use rocket::fairing::AdHoc;
 //! use rocket_oauth2::{Callback, OAuth2, OAuthConfig, TokenResponse};
-//! use rocket_oauth2::hyper_sync_rustls_adapter::HyperSyncRustlsAdapter;
+//! use rocket_oauth2::hyper_rustls_adapter::HyperRustlsAdapter;
 //!
-//! # fn github_callback(request: &Request, token: TokenResponse)
-//! #     -> Result<Redirect, Box<::std::error::Error>>
+//! # fn github_callback<'r>(request: &'r Request<'_>, token: TokenResponse) -> ResultFuture<'r>
 //! # {
 //! #     unimplemented!();
 //! # }
@@ -111,7 +112,7 @@
 //! # fn check_only() {
 //! rocket::ignite()
 //! .attach(OAuth2::fairing(
-//!     HyperSyncRustlsAdapter,
+//!     HyperRustlsAdapter,
 //!     github_callback,
 //!     "github",
 //!
@@ -135,8 +136,8 @@ pub use self::config::*;
 pub use self::core::*;
 pub use self::provider::*;
 
-#[cfg(feature = "hyper_sync_rustls_adapter")]
-pub mod hyper_sync_rustls_adapter;
+#[cfg(feature = "hyper_rustls_adapter")]
+pub mod hyper_rustls_adapter;
 
 fn generate_state() -> String {
     use rand::{distributions::Alphanumeric, thread_rng, Rng};

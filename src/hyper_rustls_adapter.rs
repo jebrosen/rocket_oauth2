@@ -1,10 +1,13 @@
-//! [Adapter] implemented using [`hyper-sync-rustls`](https://github.com/SergioBenitez/hyper-sync-rustls).
+//! [Adapter] implemented using [`hyper-rustls`](https://github.com/ctz/hyper-rustls).
 
 use hyper;
-use hyper_sync_rustls;
+use hyper_rustls;
 
-use std::io::Read;
+use std::future::Future;
+use std::pin::Pin;
 
+use futures_util::try_stream::TryStreamExt;
+use http::Error as HttpError;
 use rocket::http::ext::IntoOwned;
 use rocket::http::uri::{Absolute, Error as RocketUriError};
 use serde_json::Error as SerdeJsonError;
@@ -12,11 +15,11 @@ use url::form_urlencoded::Serializer as UrlSerializer;
 use url::{Url, ParseError};
 
 use self::hyper::{
-    header::{Accept, ContentType},
-    net::HttpsConnector,
-    status::StatusCode,
-    Client, Error as HyperError,
+    header::{ACCEPT, CONTENT_TYPE},
+    Body, Client, Error as HyperError,
+    Request, StatusCode,
 };
+use self::hyper_rustls::HttpsConnector;
 use super::{generate_state, Adapter, OAuthConfig, TokenResponse};
 
 #[derive(Debug)]
@@ -25,10 +28,14 @@ enum ErrorKind {
     UriError(ParseError),
     /// An error in the completed authorization URI
     RocketUriError(RocketUriError<'static>),
+    /// An error in the token exchange URI building
+    RequestUriError(HttpError),
     /// An error in the token exchange request
     RequestError(HyperError),
     /// A non-success response type
     UnsuccessfulRequest(StatusCode),
+    /// Failure to stream or buffer response data, or too large
+    UnsuccessfulStream,
     /// An error in deserialization
     DeserializationError(SerdeJsonError),
 
@@ -36,7 +43,7 @@ enum ErrorKind {
     __Nonexhaustive,
 }
 
-/// Error type for HyperSyncRustlsAdapter
+/// Error type for HyperRustlsAdapter
 #[derive(Debug)]
 pub struct Error { kind: ErrorKind }
 
@@ -48,9 +55,9 @@ impl From<ErrorKind> for Error {
 
 /// `Adapter` implementation that uses `hyper` and `rustls` to perform the token exchange.
 #[derive(Clone, Debug)]
-pub struct HyperSyncRustlsAdapter;
+pub struct HyperRustlsAdapter;
 
-impl Adapter for HyperSyncRustlsAdapter {
+impl Adapter for HyperRustlsAdapter {
     type Error = Error;
 
     fn authorization_uri(
@@ -80,14 +87,11 @@ impl Adapter for HyperSyncRustlsAdapter {
         ))
     }
 
-    fn exchange_code(
-        &self,
-        config: &OAuthConfig,
-        code: &str,
-    ) -> Result<TokenResponse, Self::Error> {
-        let https = HttpsConnector::new(hyper_sync_rustls::TlsClient::new());
-        let client = Client::with_connector(https);
-
+    fn exchange_code<'a>(
+        &'a self,
+        config: &'a OAuthConfig,
+        code: &'a str,
+    ) -> Pin<Box<dyn Future<Output=Result<TokenResponse, Self::Error>> + Send + 'a>> {
         let mut ser = UrlSerializer::new(String::new());
         ser.append_pair("grant_type", "authorization_code");
         ser.append_pair("code", code);
@@ -97,19 +101,34 @@ impl Adapter for HyperSyncRustlsAdapter {
 
         let req_str = ser.finish();
 
-        let request = client
-            .post(config.provider().token_uri.as_ref())
-            .header(Accept::json())
-            .header(ContentType::form_url_encoded())
-            .body(&req_str);
+        Box::pin(async move {
+            let https = HttpsConnector::new();
+            let client: Client<_, Body> = Client::builder().build(https);
 
-        let response = request.send().map_err(ErrorKind::RequestError)?;
-        if !response.status.is_success() {
-            return Err(ErrorKind::UnsuccessfulRequest(response.status).into())
-        }
+            let request = Request::post(config.provider().token_uri.as_ref())
+                .header(ACCEPT, "application/json")
+                .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
+                .body(req_str.into())
+                .map_err(ErrorKind::RequestUriError)?;
 
-        let token =
-            serde_json::from_reader(response.take(2 * 1024 * 1024)).map_err(ErrorKind::DeserializationError)?;
-        Ok(token)
+            let response = client.request(request).await
+                .map_err(ErrorKind::RequestError)?;
+
+            if !response.status().is_success() {
+                return Err(ErrorKind::UnsuccessfulRequest(response.status()).into())
+            }
+
+            let mut stream = response.into_body().map_err(|_| ErrorKind::UnsuccessfulStream);
+            let mut body = Vec::with_capacity(1024);
+            while let Some(chunk) = stream.try_next().await? {
+                if body.len() + chunk.len() > 2 * 1024 * 1024 {
+                    return Err(ErrorKind::UnsuccessfulStream.into());
+                }
+                body.extend(&chunk[..]);
+            }
+
+            let token = serde_json::from_slice(&body).map_err(ErrorKind::DeserializationError)?;
+            Ok(token)
+        })
     }
 }

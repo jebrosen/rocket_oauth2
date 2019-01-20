@@ -1,5 +1,8 @@
 use std::collections::HashMap;
 use std::fmt::Debug;
+use std::future::Future;
+use std::pin::Pin;
+use std::sync::Arc;
 
 use rocket::fairing::{AdHoc, Fairing};
 use rocket::handler;
@@ -7,7 +10,7 @@ use rocket::http::uri::Absolute;
 use rocket::http::{Cookie, Cookies, Method, SameSite, Status};
 use rocket::outcome::{IntoOutcome, Outcome};
 use rocket::request::{FormItems, FromForm, Request};
-use rocket::response::{Redirect, Responder};
+use rocket::response::{Redirect, Response, ResultFuture};
 use rocket::{Data, Route, State};
 use serde_json::Value as JsonValue;
 
@@ -46,7 +49,7 @@ pub struct TokenResponse {
 pub trait Adapter: Send + Sync + 'static {
     /// The `Error` type returned by this `Adapter` when a URI generation or
     /// token exchange fails.
-    type Error: Debug;
+    type Error: Debug + Send + 'static;
 
     /// Generate an authorization URI and state value as described by RFC 6749 §4.1.1.
     fn authorization_uri(
@@ -57,8 +60,8 @@ pub trait Adapter: Send + Sync + 'static {
 
     /// Perform the token exchange in accordance with RFC 6749 §4.1.3 given the
     /// authorization code provided by the service.
-    fn exchange_code(&self, config: &OAuthConfig, code: &str)
-        -> Result<TokenResponse, Self::Error>;
+    fn exchange_code<'a>(&'a self, config: &'a OAuthConfig, code: &'a str)
+        -> Pin<Box<dyn Future<Output=Result<TokenResponse, Self::Error>> + Send + 'a>>;
 }
 
 /// An OAuth2 `Callback` implements application-specific OAuth client logic,
@@ -66,25 +69,18 @@ pub trait Adapter: Send + Sync + 'static {
 /// tied to a specific `Adapter`, and will recieve an instance of the Adapter's
 /// `Token` type.
 pub trait Callback: Send + Sync + 'static {
-    // TODO: Relax 'static. Would this need GAT/ATC?
-    /// The callback Responder type.
-    type Responder: Responder<'static>;
-
     /// This method will be called when a token exchange has successfully
     /// completed and will be provided with the request and the token.
     /// Implementors should perform application-specific logic here, such as
     /// checking a database or setting a login cookie.
-    fn callback(&self, request: &Request<'_>, token: TokenResponse) -> Self::Responder;
+    fn callback<'r>(&self, request: &'r Request<'_>, token: TokenResponse) -> ResultFuture<'r>;
 }
 
-impl<F, R> Callback for F
+impl<F> Callback for F
 where
-    F: Fn(&Request<'_>, TokenResponse) -> R + Send + Sync + 'static,
-    R: Responder<'static>,
+    F: (for<'r> Fn(&'r Request<'_>, TokenResponse) -> Pin<Box<dyn Future<Output=Result<Response<'r>, Status>> + Send + 'r>>) + Send + Sync + 'static,
 {
-    type Responder = R;
-
-    fn callback(&self, request: &Request<'_>, token: TokenResponse) -> Self::Responder {
+    fn callback<'r>(&self, request: &'r Request<'_>, token: TokenResponse) -> ResultFuture<'r> {
         (self)(request, token)
     }
 }
@@ -184,7 +180,7 @@ impl<A: Adapter, C: Callback> OAuth2<A, C> {
         };
 
         AdHoc::on_attach("OAuth Mount", |rocket| {
-            Ok(rocket.manage(oauth2).mount("/", routes))
+            Ok(rocket.manage(Arc::new(oauth2)).mount("/", routes))
         })
     }
 
@@ -208,56 +204,58 @@ impl<A: Adapter, C: Callback> OAuth2<A, C> {
     // TODO: What do providers do if they *reject* the authorization?
     /// Handle the redirect callback, delegating to the adapter and callback to
     /// perform the token exchange and application-specific actions.
-    fn handle<'r>(&self, request: &'r Request<'_>, _data: Data) -> handler::Outcome<'r> {
-        // Parse the query data.
-        let query = request.uri().query().into_outcome(Status::BadRequest)?;
+    fn handle<'r>(self: Arc<Self>, request: &'r Request<'_>, _data: Data) -> Pin<Box<dyn Future<Output=handler::Outcome<'r>> + Send + 'r>> {
+        Box::pin(async move {
+            // Parse the query data.
+            let query = rocket::try_outcome!(request.uri().query().into_outcome(Status::BadRequest));
 
-        #[derive(FromForm)]
-        struct CallbackQuery {
-            code: String,
-            state: String,
-            // Nonstandard (but see below)
-            scope: Option<String>
-        }
-
-        let params = match CallbackQuery::from_form(&mut FormItems::from(query), false) {
-            Ok(p) => p,
-            Err(_) => return handler::Outcome::failure(Status::BadRequest),
-        };
-
-        {
-            // Verify that the given state is the same one in the cookie.
-            // Begin a new scope so that cookies is not kept around too long.
-            let mut cookies = request.guard::<Cookies<'_>>().expect("request cookies");
-            match cookies.get_private(STATE_COOKIE_NAME) {
-                Some(ref cookie) if cookie.value() == params.state => {
-                    cookies.remove(cookie.clone());
-                }
-                _ => return handler::Outcome::failure(Status::BadRequest),
+            #[derive(FromForm)]
+            struct CallbackQuery {
+                code: String,
+                state: String,
+                // Nonstandard (but see below)
+                scope: Option<String>
             }
-        }
 
-        // Have the adapter perform the token exchange.
-        let token = match self.adapter.exchange_code(&self.config, &params.code) {
-            Ok(mut token) => {
-                // Some providers (at least Strava) provide 'scope' in the callback
-                // parameters instead of the token response as the RFC prescribes.
-                // Therefore the 'scope' from the callback params is used as a fallback
-                // if the token response does not specify one.
-                if token.scope.is_none() {
-                    token.scope = params.scope;
+            let params = match CallbackQuery::from_form(&mut FormItems::from(query), false) {
+                Ok(p) => p,
+                Err(_) => return handler::Outcome::failure(Status::BadRequest),
+            };
+
+            {
+                // Verify that the given state is the same one in the cookie.
+                // Begin a new scope so that cookies is not kept around too long.
+                let mut cookies = request.guard::<Cookies<'_>>().expect("request cookies");
+                match cookies.get_private(STATE_COOKIE_NAME) {
+                    Some(ref cookie) if cookie.value() == params.state => {
+                        cookies.remove(cookie.clone());
+                    }
+                    _ => return handler::Outcome::failure(Status::BadRequest),
                 }
-                token
-            },
-            Err(e) => {
-                log::error!("Token exchange failed: {:?}", e);
-                return handler::Outcome::failure(Status::BadRequest);
             }
-        };
 
-        // Run the callback.
-        let responder = self.callback.callback(request, token);
-        handler::Outcome::from(request, responder)
+            // Have the adapter perform the token exchange.
+            let token = match self.adapter.exchange_code(&self.config, &params.code).await {
+                Ok(mut token) => {
+                    // Some providers (at least Strava) provide 'scope' in the callback
+                    // parameters instead of the token response as the RFC prescribes.
+                    // Therefore the 'scope' from the callback params is used as a fallback
+                    // if the token response does not specify one.
+                    if token.scope.is_none() {
+                        token.scope = params.scope;
+                    }
+                    token
+                },
+                Err(e) => {
+                    log::error!("Token exchange failed: {:?}", e);
+                    return handler::Outcome::failure(Status::BadRequest);
+                }
+            };
+
+            // Run the callback.
+            let responder = self.callback.callback(request, token).await;
+            handler::Outcome::from(request, responder).await
+        })
     }
 }
 
@@ -268,26 +266,30 @@ impl<A: Adapter, C: Callback> OAuth2<A, C> {
 fn redirect_handler<'r, A: Adapter, C: Callback>(
     request: &'r Request<'_>,
     data: Data,
-) -> handler::Outcome<'r> {
-    let oauth = match request.guard::<State<'_, OAuth2<A, C>>>() {
-        Outcome::Success(oauth) => oauth,
-        Outcome::Failure(_) => return handler::Outcome::failure(Status::InternalServerError),
-        Outcome::Forward(()) => unreachable!(),
-    };
-    oauth.handle(request, data)
+) -> handler::HandlerFuture<'r> {
+    Box::pin(async move {
+        let oauth = match request.guard::<State<'_, Arc<OAuth2<A, C>>>>() {
+            Outcome::Success(oauth) => oauth.clone(),
+            Outcome::Failure(_) => return handler::Outcome::failure(Status::InternalServerError),
+            Outcome::Forward(()) => unreachable!(),
+        };
+        oauth.handle(request, data).await
+    })
 }
 
 /// Handles a login route, performing a redirect
 fn login_handler<'r, A: Adapter, C: Callback>(
     request: &'r Request<'_>,
     _data: Data,
-) -> handler::Outcome<'r> {
-    let oauth = match request.guard::<State<'_, OAuth2<A, C>>>() {
-        Outcome::Success(oauth) => oauth,
-        Outcome::Failure(_) => return handler::Outcome::failure(Status::InternalServerError),
-        Outcome::Forward(()) => unreachable!(),
-    };
-    let mut cookies = request.guard::<Cookies<'_>>().expect("request cookies");
-    let scopes: Vec<_> = oauth.login_scopes.iter().map(String::as_str).collect();
-    handler::Outcome::from(request, oauth.get_redirect(&mut cookies, &scopes))
+) -> handler::HandlerFuture<'r> {
+    Box::pin(async move {
+        let oauth = match request.guard::<State<'_, Arc<OAuth2<A, C>>>>() {
+            Outcome::Success(oauth) => oauth,
+            Outcome::Failure(_) => return handler::Outcome::failure(Status::InternalServerError),
+            Outcome::Forward(()) => unreachable!(),
+        };
+        let mut cookies = request.guard::<Cookies<'_>>().expect("request cookies");
+        let scopes: Vec<_> = oauth.login_scopes.iter().map(String::as_str).collect();
+        handler::Outcome::try_from(request, oauth.get_redirect(&mut cookies, &scopes)).await
+    })
 }
