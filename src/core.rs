@@ -8,7 +8,7 @@ use rocket::http::{Cookie, Cookies, Method, SameSite, Status};
 use rocket::outcome::{IntoOutcome, Outcome};
 use rocket::request::{FormItems, FromForm, Request};
 use rocket::response::{Redirect, Responder};
-use rocket::{Data, FromForm, Route, State};
+use rocket::{Data, Route, State};
 use serde_json::Value as JsonValue;
 
 use crate::OAuthConfig;
