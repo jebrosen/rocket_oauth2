@@ -90,7 +90,7 @@ fn google_callback(
     let https = HttpsConnector::new(hyper_sync_rustls::TlsClient::new());
     let client = Client::with_connector(https);
 
-    // Use the token to retrieve the user's GitHub account information.
+    // Use the token to retrieve the user's Google account information.
     let response = client
         .get("https://people.googleapis.com/v1/people/me?personFields=names")
         .header(Authorization(Bearer {
@@ -117,6 +117,40 @@ fn google_callback(
     Ok(Redirect::to("/"))
 }
 
+/// User information to be retrieved from the Microsoft API.
+#[derive(serde::Deserialize)]
+struct MicrosoftUserInfo {
+    #[serde(default, rename = "displayName")]
+    display_name: String,
+}
+fn microsoft_callback(
+    request: &Request<'_>,
+    token: TokenResponse,
+) -> Result<Redirect, Box<dyn (::std::error::Error)>> {
+    let https = HttpsConnector::new(hyper_sync_rustls::TlsClient::new());
+    let client = Client::with_connector(https);
+
+    // Use the token to retrieve the user's Microsoft account information.
+    let response = client
+        .get("https://graph.microsoft.com/v1.0/me")
+        .header(Authorization(Bearer {
+            token: token.access_token,
+        }))
+        .send()?;
+
+    let user_info: MicrosoftUserInfo = serde_json::from_reader(response.take(2 * 1024 * 1024))?;
+
+    // Set a private cookie with the user's name, and redirect to the home page.
+    let mut cookies = request.guard::<Cookies<'_>>().expect("request cookies");
+    cookies.add_private(
+        Cookie::build("username", user_info.display_name.to_string())
+            .same_site(SameSite::Lax)
+            .finish(),
+    );
+    Ok(Redirect::to("/"))
+}
+
+
 #[get("/")]
 fn index(user: User) -> String {
     format!("Hi, {}!", user.username)
@@ -124,7 +158,7 @@ fn index(user: User) -> String {
 
 #[get("/", rank = 2)]
 fn index_anonymous() -> &'static str {
-    "Please login (/login/github or /login/google)"
+    "Please login (/login/github or /login/google or /login/microsoft)"
 }
 
 #[get("/logout")]
@@ -149,6 +183,13 @@ fn main() {
             "google",
             "/auth/google",
             Some(("/login/google", vec!["profile".to_string()])),
+        ))
+        .attach(OAuth2::fairing(
+            HyperSyncRustlsAdapter,
+            microsoft_callback,
+            "microsoft",
+            "/auth/microsoft",
+            Some(("/login/microsoft", vec!["user.read".to_string()])),
         ))
         .launch();
 }
