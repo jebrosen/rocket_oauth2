@@ -214,6 +214,7 @@ impl<A: Adapter, C: Callback> OAuth2<A, C> {
         struct CallbackQuery {
             code: String,
             state: String,
+            // Nonstandard (but see below)
             scope: Option<String>
         }
 
@@ -237,8 +238,12 @@ impl<A: Adapter, C: Callback> OAuth2<A, C> {
         // Have the adapter perform the token exchange.
         let token = match self.adapter.exchange_code(&self.config, &params.code) {
             Ok(mut token) => {
-                if token.scope == None { // if the token exchange did not provide a scope ..
-                    token.scope = params.scope; // .. use the one from the authorization exchange
+                // Some providers (at least Strava) provide 'scope' in the callback
+                // parameters instead of the token response as the RFC prescribes.
+                // Therefore the 'scope' from the callback params is used as a fallback
+                // if the token response does not specify one.
+                if token.scope.is_none() {
+                    token.scope = params.scope;
                 }
                 token
             },

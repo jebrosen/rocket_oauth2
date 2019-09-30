@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - CHANGELOG.md.
 - Support for 'Microsoft' (v2.0) as a known Provider with example.
+- A 'scope' can be specificied in the authorization callback as a
+  fallback in case it is not present in the token response. This is
+  the case with Strava, for example.
 
 ### Changed
 - Update 'rand' dependency to 0.7.
