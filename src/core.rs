@@ -237,7 +237,9 @@ impl<A: Adapter, C: Callback> OAuth2<A, C> {
         // Have the adapter perform the token exchange.
         let token = match self.adapter.exchange_code(&self.config, &params.code) {
             Ok(mut token) => {
-                token.scope = params.scope; 
+                if token.scope == None { // if the token exchange did not provide a scope ..
+                    token.scope = params.scope; // .. use the one from the authorization exchange
+                }
                 token
             },
             Err(e) => {
