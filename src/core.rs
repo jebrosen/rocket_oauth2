@@ -214,6 +214,7 @@ impl<A: Adapter, C: Callback> OAuth2<A, C> {
         struct CallbackQuery {
             code: String,
             state: String,
+            scope: Option<String>
         }
 
         let params = match CallbackQuery::from_form(&mut FormItems::from(query), false) {
@@ -235,7 +236,10 @@ impl<A: Adapter, C: Callback> OAuth2<A, C> {
 
         // Have the adapter perform the token exchange.
         let token = match self.adapter.exchange_code(&self.config, &params.code) {
-            Ok(token) => token,
+            Ok(mut token) => {
+                token.scope = params.scope; 
+                token
+            },
             Err(e) => {
                 log::error!("Token exchange failed: {:?}", e);
                 return handler::Outcome::failure(Status::BadRequest);
