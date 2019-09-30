@@ -23,7 +23,7 @@ rand = "0.7"
 rocket = "0.4.2"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-url = "1.7"
+url = "2.1"
 
 # hyper-sync-rustls adapter
 hyper = { version = "0.10", optional = true }
