@@ -17,7 +17,7 @@ const STATE_COOKIE_NAME: &str = "rocket_oauth2_state";
 
 /// The server's response to a successful token exchange, defined in
 /// in RFC 6749 §5.1.
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, Debug)]
 pub struct TokenResponse {
     /// The access token issued by the authorization server.
     pub access_token: String,
