@@ -2,6 +2,7 @@ use std::borrow::Cow;
 
 /// A `Provider` contains the authorization and token exchange URIs specific to
 /// an OAuth service provider.
+#[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub struct Provider {
     /// The authorization URI associated with the service provider.
     pub auth_uri: Cow<'static, str>,

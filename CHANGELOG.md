@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A 'scope' can be specificied in the authorization callback as a
   fallback in case it is not present in the token response. This is
   the case with Strava, for example.
+- Types derive more of the traits in `std`, such as `Clone` and `Debug`
 
 ### Changed
 - Update 'rand' dependency to 0.7.

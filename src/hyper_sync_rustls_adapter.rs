@@ -47,6 +47,7 @@ impl From<ErrorKind> for Error {
 }
 
 /// `Adapter` implementation that uses `hyper` and `rustls` to perform the token exchange.
+#[derive(Clone, Debug)]
 pub struct HyperSyncRustlsAdapter;
 
 impl Adapter for HyperSyncRustlsAdapter {
