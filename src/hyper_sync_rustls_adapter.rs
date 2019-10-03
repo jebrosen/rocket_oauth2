@@ -9,13 +9,13 @@ use rocket::http::ext::IntoOwned;
 use rocket::http::uri::{Absolute, Error as RocketUriError};
 use serde_json::Error as SerdeJsonError;
 use url::form_urlencoded::Serializer as UrlSerializer;
-use url::ParseError;
+use url::{Url, ParseError};
 
 use self::hyper::{
     header::{Accept, ContentType},
     net::HttpsConnector,
     status::StatusCode,
-    Client, Error as HyperError, Url,
+    Client, Error as HyperError,
 };
 use super::{generate_state, Adapter, OAuthConfig, TokenResponse};
 
@@ -47,6 +47,7 @@ impl From<ErrorKind> for Error {
 }
 
 /// `Adapter` implementation that uses `hyper` and `rustls` to perform the token exchange.
+#[derive(Clone, Debug)]
 pub struct HyperSyncRustlsAdapter;
 
 impl Adapter for HyperSyncRustlsAdapter {

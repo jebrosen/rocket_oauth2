@@ -4,6 +4,7 @@ use crate::Provider;
 
 /// Holds configuration for an OAuth application. This consists of the [Provider]
 /// details, a `client_id` and `client_secret`, and a `redirect_uri`.
+#[derive(Clone, PartialEq, Debug)]
 pub struct OAuthConfig {
     provider: Provider,
     client_id: String,
