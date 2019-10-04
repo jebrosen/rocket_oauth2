@@ -15,6 +15,15 @@ use crate::OAuthConfig;
 
 const STATE_COOKIE_NAME: &str = "rocket_oauth2_state";
 
+/// The token types which can be exchanged with the token endpoint
+#[derive(Debug)]
+pub enum Token {
+    /// Used for the Authorization Code exchange
+    AuthorizationCode(String),
+    /// Used to refresh an access token
+    RefreshToken(String)
+}
+
 /// The server's response to a successful token exchange, defined in
 /// in RFC 6749 §5.1.
 #[derive(Clone, PartialEq, Debug)]
@@ -57,7 +66,7 @@ pub trait Adapter: Send + Sync + 'static {
 
     /// Perform the token exchange in accordance with RFC 6749 §4.1.3 given the
     /// authorization code provided by the service.
-    fn exchange_code(&self, config: &OAuthConfig, code: &str)
+    fn exchange_code(&self, config: &OAuthConfig, token: Token)
         -> Result<TokenResponse, Self::Error>;
 }
 
@@ -151,6 +160,11 @@ impl<A: Adapter, C: Callback> OAuth2<A, C> {
         })
     }
 
+    /// get a new access token with a refresh token.
+    pub fn refresh (&self, refresh_token: &str) -> Result<TokenResponse, A::Error> {
+        self.adapter.exchange_code(&self.config, Token::RefreshToken(refresh_token.to_string()))
+    }
+
     /// Returns an OAuth2 fairing with custom configuration. The fairing will
     /// place an instance of `OAuth2<A, C>` in managed state and mount a
     /// redirect handler. It will also mount a login handler if `login` is
@@ -238,7 +252,7 @@ impl<A: Adapter, C: Callback> OAuth2<A, C> {
         }
 
         // Have the adapter perform the token exchange.
-        let token = match self.adapter.exchange_code(&self.config, &params.code) {
+        let token = match self.adapter.exchange_code(&self.config, Token::AuthorizationCode(params.code)) {
             Ok(mut token) => {
                 // Some providers (at least Strava) provide 'scope' in the callback
                 // parameters instead of the token response as the RFC prescribes.
