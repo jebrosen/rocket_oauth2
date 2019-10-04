@@ -15,6 +15,15 @@ use crate::OAuthConfig;
 
 const STATE_COOKIE_NAME: &str = "rocket_oauth2_state";
 
+/// The token types which can be exchanged with the token endpoint
+#[derive(Clone, PartialEq, Debug)]
+pub enum TokenRequest {
+    /// Used for the Authorization Code exchange
+    AuthorizationCode(String),
+    /// Used to refresh an access token
+    RefreshToken(String)
+}
+
 /// The server's response to a successful token exchange, defined in
 /// in RFC 6749 §5.1.
 #[derive(Clone, PartialEq, Debug)]
@@ -57,7 +66,7 @@ pub trait Adapter: Send + Sync + 'static {
 
     /// Perform the token exchange in accordance with RFC 6749 §4.1.3 given the
     /// authorization code provided by the service.
-    fn exchange_code(&self, config: &OAuthConfig, code: &str)
+    fn exchange_code(&self, config: &OAuthConfig, token: TokenRequest)
         -> Result<TokenResponse, Self::Error>;
 }
 
@@ -204,6 +213,12 @@ impl<A: Adapter, C: Callback> OAuth2<A, C> {
         Ok(Redirect::to(uri))
     }
 
+    /// Request a new access token given a refresh token. The refresh token
+    /// must have been returned by the provider in a previous [`TokenResponse`].
+    pub fn refresh(&self, refresh_token: &str) -> Result<TokenResponse, A::Error> {
+        self.adapter.exchange_code(&self.config, TokenRequest::RefreshToken(refresh_token.to_string()))
+    }
+
     // TODO: Decide if BadRequest is the appropriate error code.
     // TODO: What do providers do if they *reject* the authorization?
     /// Handle the redirect callback, delegating to the adapter and callback to
@@ -238,7 +253,7 @@ impl<A: Adapter, C: Callback> OAuth2<A, C> {
         }
 
         // Have the adapter perform the token exchange.
-        let token = match self.adapter.exchange_code(&self.config, &params.code) {
+        let token = match self.adapter.exchange_code(&self.config, TokenRequest::AuthorizationCode(params.code)) {
             Ok(mut token) => {
                 // Some providers (at least Strava) provide 'scope' in the callback
                 // parameters instead of the token response as the RFC prescribes.

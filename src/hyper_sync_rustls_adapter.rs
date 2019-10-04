@@ -17,7 +17,7 @@ use self::hyper::{
     status::StatusCode,
     Client, Error as HyperError,
 };
-use super::{generate_state, Adapter, OAuthConfig, TokenResponse};
+use super::{generate_state, Adapter, OAuthConfig, TokenResponse, TokenRequest};
 
 #[derive(Debug)]
 enum ErrorKind {
@@ -83,15 +83,23 @@ impl Adapter for HyperSyncRustlsAdapter {
     fn exchange_code(
         &self,
         config: &OAuthConfig,
-        code: &str,
+        token: TokenRequest
     ) -> Result<TokenResponse, Self::Error> {
         let https = HttpsConnector::new(hyper_sync_rustls::TlsClient::new());
         let client = Client::with_connector(https);
 
         let mut ser = UrlSerializer::new(String::new());
-        ser.append_pair("grant_type", "authorization_code");
-        ser.append_pair("code", code);
-        ser.append_pair("redirect_uri", config.redirect_uri());
+        match token {
+            TokenRequest::AuthorizationCode(code) => {
+                ser.append_pair("grant_type", "authorization_code");
+                ser.append_pair("code", &code);
+                ser.append_pair("redirect_uri", config.redirect_uri());
+            }
+            TokenRequest::RefreshToken(token) => {
+                ser.append_pair("grant_type", "refresh_token");
+                ser.append_pair("refresh_token", &token);
+            }
+        }
         ser.append_pair("client_id", config.client_id());
         ser.append_pair("client_secret", config.client_secret());
 
@@ -104,6 +112,7 @@ impl Adapter for HyperSyncRustlsAdapter {
             .body(&req_str);
 
         let response = request.send().map_err(ErrorKind::RequestError)?;
+
         if !response.status.is_success() {
             return Err(ErrorKind::UnsuccessfulRequest(response.status).into())
         }

@@ -18,11 +18,11 @@
 //! * Built-in support for a few popular OAuth2 providers
 //! * Support for custom providers
 //! * Support for custom adapters
+//! * Refreshing tokens
 //!
 //! ## Not-yet-planned Features
 //!
 //! * Grant types other than Authorization Code.
-//! * Refresh token support
 //!
 //! ## Design
 //!
