@@ -129,10 +129,12 @@
 
 mod config;
 mod core;
+mod error;
 mod provider;
 
 pub use self::config::*;
 pub use self::core::*;
+pub use self::error::*;
 pub use self::provider::*;
 
 #[cfg(feature = "hyper_sync_rustls_adapter")]

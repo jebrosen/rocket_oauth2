@@ -11,7 +11,7 @@ use rocket::response::{Redirect, Responder};
 use rocket::{Data, Route, State};
 use serde_json::Value as JsonValue;
 
-use crate::OAuthConfig;
+use crate::{Error, OAuthConfig};
 
 const STATE_COOKIE_NAME: &str = "rocket_oauth2_state";
 
@@ -53,21 +53,17 @@ pub struct TokenResponse {
 /// type must be able to generate an authorization URI and perform the token
 /// exchange.
 pub trait Adapter: Send + Sync + 'static {
-    /// The `Error` type returned by this `Adapter` when a URI generation or
-    /// token exchange fails.
-    type Error: Debug;
-
     /// Generate an authorization URI and state value as described by RFC 6749 §4.1.1.
     fn authorization_uri(
         &self,
         config: &OAuthConfig,
         scopes: &[&str],
-    ) -> Result<(Absolute<'static>, String), Self::Error>;
+    ) -> Result<(Absolute<'static>, String), Error>;
 
     /// Perform the token exchange in accordance with RFC 6749 §4.1.3 given the
     /// authorization code provided by the service.
     fn exchange_code(&self, config: &OAuthConfig, token: TokenRequest)
-        -> Result<TokenResponse, Self::Error>;
+        -> Result<TokenResponse, Error>;
 }
 
 /// An OAuth2 `Callback` implements application-specific OAuth client logic,
@@ -203,7 +199,7 @@ impl<A: Adapter, C: Callback> OAuth2<A, C> {
         &self,
         cookies: &mut Cookies<'_>,
         scopes: &[&str],
-    ) -> Result<Redirect, A::Error> {
+    ) -> Result<Redirect, Error> {
         let (uri, state) = self.adapter.authorization_uri(&self.config, scopes)?;
         cookies.add_private(
             Cookie::build(STATE_COOKIE_NAME, state.clone())
@@ -215,7 +211,7 @@ impl<A: Adapter, C: Callback> OAuth2<A, C> {
 
     /// Request a new access token given a refresh token. The refresh token
     /// must have been returned by the provider in a previous [`TokenResponse`].
-    pub fn refresh(&self, refresh_token: &str) -> Result<TokenResponse, A::Error> {
+    pub fn refresh(&self, refresh_token: &str) -> Result<TokenResponse, Error> {
         self.adapter.exchange_code(&self.config, TokenRequest::RefreshToken(refresh_token.to_string()))
     }
 

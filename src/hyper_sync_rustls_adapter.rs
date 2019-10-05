@@ -6,61 +6,32 @@ use hyper_sync_rustls;
 use std::io::Read;
 
 use rocket::http::ext::IntoOwned;
-use rocket::http::uri::{Absolute, Error as RocketUriError};
-use serde_json::Error as SerdeJsonError;
+use rocket::http::uri::Absolute;
 use url::form_urlencoded::Serializer as UrlSerializer;
-use url::{Url, ParseError};
+use url::Url;
 
 use self::hyper::{
     header::{Accept, ContentType},
     net::HttpsConnector,
-    status::StatusCode,
-    Client, Error as HyperError,
+    Client,
 };
-use super::{generate_state, Adapter, OAuthConfig, TokenResponse, TokenRequest};
-
-#[derive(Debug)]
-enum ErrorKind {
-    /// An error in the provided authorization URI
-    UriError(ParseError),
-    /// An error in the completed authorization URI
-    RocketUriError(RocketUriError<'static>),
-    /// An error in the token exchange request
-    RequestError(HyperError),
-    /// A non-success response type
-    UnsuccessfulRequest(StatusCode),
-    /// An error in deserialization
-    DeserializationError(SerdeJsonError),
-
-    #[doc(hidden)]
-    __Nonexhaustive,
-}
-
-/// Error type for HyperSyncRustlsAdapter
-#[derive(Debug)]
-pub struct Error { kind: ErrorKind }
-
-impl From<ErrorKind> for Error {
-    fn from(ek: ErrorKind) -> Error {
-        Error { kind: ek }
-    }
-}
+use super::{generate_state, Adapter, Error, ErrorKind, OAuthConfig, TokenResponse, TokenRequest};
 
 /// `Adapter` implementation that uses `hyper` and `rustls` to perform the token exchange.
 #[derive(Clone, Debug)]
 pub struct HyperSyncRustlsAdapter;
 
 impl Adapter for HyperSyncRustlsAdapter {
-    type Error = Error;
-
     fn authorization_uri(
         &self,
         config: &OAuthConfig,
         scopes: &[&str],
-    ) -> Result<(Absolute<'static>, String), Self::Error> {
+    ) -> Result<(Absolute<'static>, String), Error> {
         let state = generate_state();
 
-        let mut url = Url::parse(&config.provider().auth_uri).map_err(ErrorKind::UriError)?;
+        let mut url = Url::parse(&config.provider().auth_uri)
+            .map_err(|e| Error::new_from(ErrorKind::InvalidUri(config.provider().auth_uri.to_string()), e))?;
+
         url.query_pairs_mut()
             .append_pair("response_type", "code")
             .append_pair("client_id", config.client_id())
@@ -74,7 +45,7 @@ impl Adapter for HyperSyncRustlsAdapter {
 
         Ok((
             Absolute::parse(url.as_ref())
-                .map_err(|e| ErrorKind::RocketUriError(e.into_owned()))?
+                .map_err(|_| Error::new(ErrorKind::InvalidUri(url.to_string())))?
                 .into_owned(),
             state,
         ))
@@ -84,7 +55,7 @@ impl Adapter for HyperSyncRustlsAdapter {
         &self,
         config: &OAuthConfig,
         token: TokenRequest
-    ) -> Result<TokenResponse, Self::Error> {
+    ) -> Result<TokenResponse, Error> {
         let https = HttpsConnector::new(hyper_sync_rustls::TlsClient::new());
         let client = Client::with_connector(https);
 
@@ -111,14 +82,15 @@ impl Adapter for HyperSyncRustlsAdapter {
             .header(ContentType::form_url_encoded())
             .body(&req_str);
 
-        let response = request.send().map_err(ErrorKind::RequestError)?;
+        let response = request.send().map_err(|e| Error::new_from(ErrorKind::ExchangeFailure, e))?;
 
         if !response.status.is_success() {
-            return Err(ErrorKind::UnsuccessfulRequest(response.status).into())
+            return Err(Error::new(ErrorKind::ExchangeError(response.status.to_u16())))
         }
 
         let token =
-            serde_json::from_reader(response.take(2 * 1024 * 1024)).map_err(ErrorKind::DeserializationError)?;
+            serde_json::from_reader(response.take(2 * 1024 * 1024))
+            .map_err(|e| Error::new_from(ErrorKind::ExchangeFailure, e))?;
         Ok(token)
     }
 }
