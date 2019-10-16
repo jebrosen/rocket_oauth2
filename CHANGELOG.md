@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `TokenResponse` is redesigned and no longer uses `serde_derive`.
   Fields have been converted to methods, and `.as_value()` replaces
   the functionality of `.extras`.
+- `Provider` is now a trait, allowing for dynamically determined `Provider`s.
 
 ## 0.1.0 - 2019-10-01
 ### Added

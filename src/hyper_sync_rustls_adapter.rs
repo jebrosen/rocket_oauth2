@@ -30,8 +30,10 @@ impl Adapter for HyperSyncRustlsAdapter {
     ) -> Result<(Absolute<'static>, String), Error> {
         let state = generate_state();
 
-        let mut url = Url::parse(&config.provider().auth_uri)
-            .map_err(|e| Error::new_from(ErrorKind::InvalidUri(config.provider().auth_uri.to_string()), e))?;
+        let auth_uri = config.provider().auth_uri();
+
+        let mut url = Url::parse(&auth_uri)
+            .map_err(|e| Error::new_from(ErrorKind::InvalidUri(auth_uri.to_string()), e))?;
 
         url.query_pairs_mut()
             .append_pair("response_type", "code")
@@ -78,7 +80,7 @@ impl Adapter for HyperSyncRustlsAdapter {
         let req_str = ser.finish();
 
         let request = client
-            .post(config.provider().token_uri.as_ref())
+            .post(config.provider().token_uri().as_ref())
             .header(Accept::json())
             .header(ContentType::form_url_encoded())
             .body(&req_str);
