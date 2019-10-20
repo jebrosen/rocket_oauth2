@@ -246,7 +246,7 @@ impl<C: Callback> OAuth2<C> {
     ) -> Result<Redirect, Error> {
         let (uri, state) = self.adapter.authorization_uri(&self.config, scopes)?;
         cookies.add_private(
-            Cookie::build(STATE_COOKIE_NAME, state.clone())
+            Cookie::build(STATE_COOKIE_NAME, state)
                 .same_site(SameSite::Lax)
                 .finish(),
         );
