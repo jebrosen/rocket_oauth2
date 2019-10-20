@@ -35,9 +35,13 @@ impl Error {
 
     /// Create a new `Error` given a `kind` and `source`.
     pub fn new_from<E>(kind: ErrorKind, source: E) -> Self
-    where E: Into<Box<dyn StdError + Send + Sync>>
+    where
+        E: Into<Box<dyn StdError + Send + Sync>>,
     {
-        Self { kind, source: Some(source.into()) }
+        Self {
+            kind,
+            source: Some(source.into()),
+        }
     }
 
     /// Returns the kind of error that occurred.
@@ -51,7 +55,11 @@ impl Display for Error {
         match &self.kind {
             ErrorKind::InvalidUri(uri) => write!(f, "invalid URI: '{}'", uri)?,
             ErrorKind::ExchangeFailure => write!(f, "failed to exchange token")?,
-            ErrorKind::ExchangeError(code) => write!(f, "token exchange returned non-success status code: {}", code)?,
+            ErrorKind::ExchangeError(code) => write!(
+                f,
+                "token exchange returned non-success status code: {}",
+                code
+            )?,
             ErrorKind::Other => write!(f, "an unknown error occurred")?,
         }
 

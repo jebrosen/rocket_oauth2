@@ -150,7 +150,6 @@ fn microsoft_callback(
     Ok(Redirect::to("/"))
 }
 
-
 #[get("/")]
 fn index(user: User) -> String {
     format!("Hi, {}!", user.username)

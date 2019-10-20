@@ -20,7 +20,7 @@ pub enum TokenRequest {
     /// Used for the Authorization Code exchange
     AuthorizationCode(String),
     /// Used to refresh an access token
-    RefreshToken(String)
+    RefreshToken(String),
 }
 
 /// The server's response to a successful token exchange, defined in
@@ -39,15 +39,28 @@ impl std::convert::TryFrom<Value> for TokenResponse {
     /// missing or not a string.
     fn try_from(data: Value) -> Result<Self, Error> {
         if !data.is_object() {
-            return Err(Error::new_from(ErrorKind::ExchangeFailure, String::from("TokenResponse data was not an object")));
+            return Err(Error::new_from(
+                ErrorKind::ExchangeFailure,
+                String::from("TokenResponse data was not an object"),
+            ));
         }
         match data.get("access_token") {
             Some(val) if val.is_string() => (),
-            _ => return Err(Error::new_from(ErrorKind::ExchangeFailure, String::from("TokenResponse access_token was missing or not a string"))),
+            _ => {
+                return Err(Error::new_from(
+                    ErrorKind::ExchangeFailure,
+                    String::from("TokenResponse access_token was missing or not a string"),
+                ))
+            }
         }
         match data.get("token_type") {
             Some(val) if val.is_string() => (),
-            _ => return Err(Error::new_from(ErrorKind::ExchangeFailure, String::from("TokenResponse token_type was missing or not a string"))),
+            _ => {
+                return Err(Error::new_from(
+                    ErrorKind::ExchangeFailure,
+                    String::from("TokenResponse token_type was missing or not a string"),
+                ))
+            }
         }
 
         Ok(Self { data })
@@ -63,12 +76,18 @@ impl TokenResponse {
 
     /// Get the access token issued by the authorization server.
     pub fn access_token(&self) -> &str {
-        self.data.get("access_token").and_then(Value::as_str).expect("access_token required at construction")
+        self.data
+            .get("access_token")
+            .and_then(Value::as_str)
+            .expect("access_token required at construction")
     }
 
     /// Get the type of token, described in RFC 6749 §7.1.
     pub fn token_type(&self) -> &str {
-        self.data.get("token_type").and_then(Value::as_str).expect("token_type required at construction")
+        self.data
+            .get("token_type")
+            .and_then(Value::as_str)
+            .expect("token_type required at construction")
     }
 
     /// Get the lifetime in seconds of the access token, if the authorization server provided one.
@@ -107,8 +126,11 @@ pub trait Adapter: Send + Sync + 'static {
 
     /// Perform the token exchange in accordance with RFC 6749 §4.1.3 given the
     /// authorization code provided by the service.
-    fn exchange_code(&self, config: &OAuthConfig, token: TokenRequest)
-        -> Result<TokenResponse, Error>;
+    fn exchange_code(
+        &self,
+        config: &OAuthConfig,
+        token: TokenRequest,
+    ) -> Result<TokenResponse, Error>;
 }
 
 /// An OAuth2 `Callback` implements application-specific OAuth client logic,
@@ -213,11 +235,7 @@ impl<C: Callback> OAuth2<C> {
     ) -> impl Fairing {
         let mut routes = Vec::new();
 
-        routes.push(Route::new(
-            Method::Get,
-            callback_uri,
-            redirect_handler::<C>,
-        ));
+        routes.push(Route::new(Method::Get, callback_uri, redirect_handler::<C>));
 
         let mut login_scopes = vec![];
         if let Some((uri, scopes)) = login {
@@ -256,7 +274,10 @@ impl<C: Callback> OAuth2<C> {
     /// Request a new access token given a refresh token. The refresh token
     /// must have been returned by the provider in a previous [`TokenResponse`].
     pub fn refresh(&self, refresh_token: &str) -> Result<TokenResponse, Error> {
-        self.adapter.exchange_code(&self.config, TokenRequest::RefreshToken(refresh_token.to_string()))
+        self.adapter.exchange_code(
+            &self.config,
+            TokenRequest::RefreshToken(refresh_token.to_string()),
+        )
     }
 
     // TODO: Decide if BadRequest is the appropriate error code.
@@ -272,7 +293,7 @@ impl<C: Callback> OAuth2<C> {
             code: String,
             state: String,
             // Nonstandard (but see below)
-            scope: Option<String>
+            scope: Option<String>,
         }
 
         let params = match CallbackQuery::from_form(&mut FormItems::from(query), false) {
@@ -293,18 +314,24 @@ impl<C: Callback> OAuth2<C> {
         }
 
         // Have the adapter perform the token exchange.
-        let token = match self.adapter.exchange_code(&self.config, TokenRequest::AuthorizationCode(params.code)) {
+        let token = match self
+            .adapter
+            .exchange_code(&self.config, TokenRequest::AuthorizationCode(params.code))
+        {
             Ok(mut token) => {
                 // Some providers (at least Strava) provide 'scope' in the callback
                 // parameters instead of the token response as the RFC prescribes.
                 // Therefore the 'scope' from the callback params is used as a fallback
                 // if the token response does not specify one.
-                let data = token.data.as_object_mut().expect("data is guaranteed to be an Object");
+                let data = token
+                    .data
+                    .as_object_mut()
+                    .expect("data is guaranteed to be an Object");
                 if let (None, Some(scope)) = (data.get("scope"), params.scope) {
                     data.insert(String::from("scope"), Value::String(scope));
                 }
                 token
-            },
+            }
             Err(e) => {
                 log::error!("Token exchange failed: {:?}", e);
                 return handler::Outcome::failure(Status::BadRequest);
@@ -332,10 +359,7 @@ impl<C: fmt::Debug> fmt::Debug for OAuth2<C> {
 // TODO: cross-reference rust-lang/rust issues.
 
 /// Handles the OAuth redirect route
-fn redirect_handler<'r, C: Callback>(
-    request: &'r Request<'_>,
-    data: Data,
-) -> handler::Outcome<'r> {
+fn redirect_handler<'r, C: Callback>(request: &'r Request<'_>, data: Data) -> handler::Outcome<'r> {
     let oauth = match request.guard::<State<'_, OAuth2<C>>>() {
         Outcome::Success(oauth) => oauth,
         Outcome::Failure(_) => return handler::Outcome::failure(Status::InternalServerError),
@@ -345,10 +369,7 @@ fn redirect_handler<'r, C: Callback>(
 }
 
 /// Handles a login route, performing a redirect
-fn login_handler<'r, C: Callback>(
-    request: &'r Request<'_>,
-    _data: Data,
-) -> handler::Outcome<'r> {
+fn login_handler<'r, C: Callback>(request: &'r Request<'_>, _data: Data) -> handler::Outcome<'r> {
     let oauth = match request.guard::<State<'_, OAuth2<C>>>() {
         Outcome::Success(oauth) => oauth,
         Outcome::Failure(_) => return handler::Outcome::failure(Status::InternalServerError),

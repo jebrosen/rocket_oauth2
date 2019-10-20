@@ -59,9 +59,9 @@ impl OAuthConfig {
             .get(name)
             .ok_or_else(|| ConfigError::Missing(name.to_string()))?;
 
-        let table = conf.as_table().ok_or_else(|| {
-            ConfigError::BadType(name.into(), "table", conf.type_str(), None)
-        })?;
+        let table = conf
+            .as_table()
+            .ok_or_else(|| ConfigError::BadType(name.into(), "table", conf.type_str(), None))?;
 
         let provider = match conf.get("provider") {
             Some(v) => provider_from_config_value(v),
@@ -102,14 +102,8 @@ impl OAuthConfig {
 }
 
 fn provider_from_config_value(conf: &Value) -> Result<StaticProvider, ConfigError> {
-    let type_error = || {
-        ConfigError::BadType(
-            "provider".into(),
-            "known provider or table",
-            "",
-            None,
-        )
-    };
+    let type_error =
+        || ConfigError::BadType("provider".into(), "known provider or table", "", None);
 
     match conf {
         Value::String(s) => StaticProvider::from_known_name(s).ok_or_else(type_error),

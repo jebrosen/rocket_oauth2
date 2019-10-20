@@ -16,7 +16,7 @@ use self::hyper::{
     net::HttpsConnector,
     Client,
 };
-use super::{generate_state, Adapter, Error, ErrorKind, OAuthConfig, TokenResponse, TokenRequest};
+use super::{generate_state, Adapter, Error, ErrorKind, OAuthConfig, TokenRequest, TokenResponse};
 
 /// `Adapter` implementation that uses `hyper` and `rustls` to perform the token exchange.
 #[derive(Clone, Debug)]
@@ -57,7 +57,7 @@ impl Adapter for HyperSyncRustlsAdapter {
     fn exchange_code(
         &self,
         config: &OAuthConfig,
-        token: TokenRequest
+        token: TokenRequest,
     ) -> Result<TokenResponse, Error> {
         let https = HttpsConnector::new(hyper_sync_rustls::TlsClient::new());
         let client = Client::with_connector(https);
@@ -85,14 +85,17 @@ impl Adapter for HyperSyncRustlsAdapter {
             .header(ContentType::form_url_encoded())
             .body(&req_str);
 
-        let response = request.send().map_err(|e| Error::new_from(ErrorKind::ExchangeFailure, e))?;
+        let response = request
+            .send()
+            .map_err(|e| Error::new_from(ErrorKind::ExchangeFailure, e))?;
 
         if !response.status.is_success() {
-            return Err(Error::new(ErrorKind::ExchangeError(response.status.to_u16())))
+            return Err(Error::new(ErrorKind::ExchangeError(
+                response.status.to_u16(),
+            )));
         }
 
-        let data: serde_json::Value =
-            serde_json::from_reader(response.take(2 * 1024 * 1024))
+        let data: serde_json::Value = serde_json::from_reader(response.take(2 * 1024 * 1024))
             .map_err(|e| Error::new_from(ErrorKind::ExchangeFailure, e))?;
         Ok(data.try_into()?)
     }
