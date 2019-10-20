@@ -3,6 +3,7 @@
 use hyper;
 use hyper_sync_rustls;
 
+use std::convert::TryInto;
 use std::io::Read;
 
 use rocket::http::ext::IntoOwned;
@@ -88,9 +89,9 @@ impl Adapter for HyperSyncRustlsAdapter {
             return Err(Error::new(ErrorKind::ExchangeError(response.status.to_u16())))
         }
 
-        let token =
+        let data: serde_json::Value =
             serde_json::from_reader(response.take(2 * 1024 * 1024))
             .map_err(|e| Error::new_from(ErrorKind::ExchangeFailure, e))?;
-        Ok(token)
+        Ok(data.try_into()?)
     }
 }

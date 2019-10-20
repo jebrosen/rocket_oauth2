@@ -56,7 +56,7 @@ fn github_callback(
         .expect("parse GitHub MIME type");
     let response = client
         .get("https://api.github.com/user")
-        .header(Authorization(format!("token {}", token.access_token)))
+        .header(Authorization(format!("token {}", token.access_token())))
         .header(Accept(vec![qitem(mime)]))
         .header(UserAgent("rocket_oauth2 demo application".into()))
         .send()?;
@@ -94,7 +94,7 @@ fn google_callback(
     let response = client
         .get("https://people.googleapis.com/v1/people/me?personFields=names")
         .header(Authorization(Bearer {
-            token: token.access_token,
+            token: token.access_token().to_string(),
         }))
         .send()?;
 
@@ -134,7 +134,7 @@ fn microsoft_callback(
     let response = client
         .get("https://graph.microsoft.com/v1.0/me")
         .header(Authorization(Bearer {
-            token: token.access_token,
+            token: token.access_token().to_string(),
         }))
         .send()?;
 

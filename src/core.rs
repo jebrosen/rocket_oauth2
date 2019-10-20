@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::fmt;
 
 use rocket::fairing::{AdHoc, Fairing};
@@ -9,9 +8,9 @@ use rocket::outcome::{IntoOutcome, Outcome};
 use rocket::request::{FormItems, FromForm, Request};
 use rocket::response::{Redirect, Responder};
 use rocket::{Data, Route, State};
-use serde_json::Value as JsonValue;
+use serde_json::Value;
 
-use crate::{Error, OAuthConfig};
+use crate::{Error, ErrorKind, OAuthConfig};
 
 const STATE_COOKIE_NAME: &str = "rocket_oauth2_state";
 
@@ -27,25 +26,71 @@ pub enum TokenRequest {
 /// The server's response to a successful token exchange, defined in
 /// in RFC 6749 §5.1.
 #[derive(Clone, PartialEq, Debug)]
-#[derive(serde::Deserialize)]
 pub struct TokenResponse {
-    /// The access token issued by the authorization server.
-    pub access_token: String,
-    /// The type of token, described in RFC 6749 §7.1.
-    pub token_type: String,
-    /// The lifetime in seconds of the access token, if the authorization server
-    /// provided one.
-    pub expires_in: Option<i32>,
-    /// The refresh token, if the server provided one.
-    pub refresh_token: Option<String>,
-    /// The (space-separated) list of scopes associated with the access token.
-    /// The authorization server is required to provide this if it differs from
-    /// the requested set of scopes.
-    pub scope: Option<String>,
+    data: Value,
+}
 
-    /// Additional values returned by the authorization server, if any.
-    #[serde(flatten)]
-    pub extras: HashMap<String, JsonValue>,
+impl std::convert::TryFrom<Value> for TokenResponse {
+    type Error = Error;
+
+    /// Construct a TokenResponse from a [Value].
+    ///
+    /// Returns an [Error] if data is not a JSON Object, or the access_token or token_type is
+    /// missing or not a string.
+    fn try_from(data: Value) -> Result<Self, Error> {
+        if !data.is_object() {
+            return Err(Error::new_from(ErrorKind::ExchangeFailure, String::from("TokenResponse data was not an object")));
+        }
+        match data.get("access_token") {
+            Some(val) if val.is_string() => (),
+            _ => return Err(Error::new_from(ErrorKind::ExchangeFailure, String::from("TokenResponse access_token was missing or not a string"))),
+        }
+        match data.get("token_type") {
+            Some(val) if val.is_string() => (),
+            _ => return Err(Error::new_from(ErrorKind::ExchangeFailure, String::from("TokenResponse token_type was missing or not a string"))),
+        }
+
+        Ok(Self { data })
+    }
+}
+
+impl TokenResponse {
+    /// Get the TokenResponse data as a raw JSON [Value]. It is guaranteed to
+    /// be of type Object.
+    pub fn as_value(&self) -> &Value {
+        &self.data
+    }
+
+    /// Get the access token issued by the authorization server.
+    pub fn access_token(&self) -> &str {
+        self.data.get("access_token").and_then(Value::as_str).expect("access_token required at construction")
+    }
+
+    /// Get the type of token, described in RFC 6749 §7.1.
+    pub fn token_type(&self) -> &str {
+        self.data.get("token_type").and_then(Value::as_str).expect("token_type required at construction")
+    }
+
+    /// Get the lifetime in seconds of the access token, if the authorization server provided one.
+    pub fn expires_in(&self) -> Option<i64> {
+        self.data.get("expires_in").and_then(Value::as_i64)
+    }
+
+    /// Get the refresh token, if the server provided one.
+    pub fn refresh_token(&self) -> Option<&str> {
+        self.data.get("refresh_token").and_then(Value::as_str)
+    }
+
+    /// Get the (space-separated) list of scopes associated with the access
+    /// token.  The authorization server is required to provide this if it
+    /// differs from the requested set of scopes.
+    ///
+    /// If `scope` was not provided by the server as a string, this method will
+    /// return `None`. For those providers, use `.as_value().get("scope")
+    /// instead.
+    pub fn scope(&self) -> Option<&str> {
+        self.data.get("scope").and_then(Value::as_str)
+    }
 }
 
 /// An OAuth2 `Adapater` can be implemented by any type that facilitates the
@@ -254,8 +299,9 @@ impl<C: Callback> OAuth2<C> {
                 // parameters instead of the token response as the RFC prescribes.
                 // Therefore the 'scope' from the callback params is used as a fallback
                 // if the token response does not specify one.
-                if token.scope.is_none() {
-                    token.scope = params.scope;
+                let data = token.data.as_object_mut().expect("data is guaranteed to be an Object");
+                if let (None, Some(scope)) = (data.get("scope"), params.scope) {
+                    data.insert(String::from("scope"), Value::String(scope));
                 }
                 token
             },

@@ -73,7 +73,7 @@
 //!
 //!     // Set a private cookie with the access token
 //!     cookies.add_private(
-//!         Cookie::build("token", token.access_token)
+//!         Cookie::build("token", token.access_token().to_string())
 //!             .same_site(SameSite::Lax)
 //!             .finish()
 //!     );
