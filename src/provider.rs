@@ -29,7 +29,7 @@ impl Provider for StaticProvider {
     }
 
     fn token_uri(&self) -> Cow<'_, str> {
-        Cow::Borrowed(&*self.auth_uri)
+        Cow::Borrowed(&*self.token_uri)
     }
 }
 
