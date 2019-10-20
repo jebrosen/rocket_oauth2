@@ -18,11 +18,11 @@ default = ["hyper_sync_rustls_adapter"]
 hyper_sync_rustls_adapter = ["hyper", "hyper-sync-rustls"]
 
 [dependencies]
-log = "0.4"
+log = "0.4.4"
 rand = "0.7"
-rocket = "0.4.2"
+rocket = { version = "0.4", default-features = false, features = ["private-cookies"] }
 serde_json = "1.0"
-url = "2.1"
+url = "2.0"
 
 # hyper-sync-rustls adapter
 hyper = { version = "0.10", optional = true }
