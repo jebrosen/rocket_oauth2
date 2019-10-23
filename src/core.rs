@@ -1,5 +1,6 @@
 use std::fmt;
 
+use ring::rand::{SecureRandom, SystemRandom};
 use rocket::fairing::{AdHoc, Fairing};
 use rocket::handler;
 use rocket::http::uri::Absolute;
@@ -13,6 +14,19 @@ use serde_json::Value;
 use crate::{Error, ErrorKind, OAuthConfig};
 
 const STATE_COOKIE_NAME: &str = "rocket_oauth2_state";
+
+// Random generation of state for defense against CSRF.
+// See RFC 6749 §10.12 for more details.
+fn generate_state(rng: &dyn SecureRandom) -> Result<String, Error> {
+    let mut buf = [0; 16]; // 128 bits
+    rng.fill(&mut buf).map_err(|_| {
+        Error::new_from(
+            ErrorKind::Other,
+            String::from("Failed to generate random data"),
+        )
+    })?;
+    Ok(base64::encode_config(&buf, base64::URL_SAFE_NO_PAD))
+}
 
 /// The token types which can be exchanged with the token endpoint
 #[derive(Clone, PartialEq, Debug)]
@@ -181,6 +195,7 @@ pub struct OAuth2<C> {
     callback: C,
     config: OAuthConfig,
     login_scopes: Vec<String>,
+    rng: SystemRandom,
 }
 
 impl<C: Callback> OAuth2<C> {
@@ -250,6 +265,7 @@ impl<C: Callback> OAuth2<C> {
             callback,
             config,
             login_scopes,
+            rng: SystemRandom::new(),
         };
 
         AdHoc::on_attach("OAuth Mount", |rocket| {
@@ -264,8 +280,10 @@ impl<C: Callback> OAuth2<C> {
         cookies: &mut Cookies<'_>,
         scopes: &[&str],
     ) -> Result<Redirect, Error> {
-        let state = super::generate_state();
-        let uri = self.adapter.authorization_uri(&self.config, &state, scopes)?;
+        let state = generate_state(&self.rng)?;
+        let uri = self
+            .adapter
+            .authorization_uri(&self.config, &state, scopes)?;
         cookies.add_private(
             Cookie::build(STATE_COOKIE_NAME, state)
                 .same_site(SameSite::Lax)

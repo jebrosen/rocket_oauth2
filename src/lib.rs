@@ -139,8 +139,3 @@ pub use self::provider::*;
 
 #[cfg(feature = "hyper_sync_rustls_adapter")]
 pub mod hyper_sync_rustls_adapter;
-
-fn generate_state() -> String {
-    use rand::{distributions::Alphanumeric, thread_rng, Rng};
-    thread_rng().sample_iter(&Alphanumeric).take(20).collect()
-}
