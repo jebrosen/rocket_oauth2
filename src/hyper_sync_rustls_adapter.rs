@@ -16,7 +16,7 @@ use self::hyper::{
     net::HttpsConnector,
     Client,
 };
-use super::{generate_state, Adapter, Error, ErrorKind, OAuthConfig, TokenRequest, TokenResponse};
+use super::{Adapter, Error, ErrorKind, OAuthConfig, TokenRequest, TokenResponse};
 
 /// `Adapter` implementation that uses `hyper` and `rustls` to perform the token exchange.
 #[derive(Clone, Debug)]
@@ -26,10 +26,9 @@ impl Adapter for HyperSyncRustlsAdapter {
     fn authorization_uri(
         &self,
         config: &OAuthConfig,
+        state: &str,
         scopes: &[&str],
-    ) -> Result<(Absolute<'static>, String), Error> {
-        let state = generate_state();
-
+    ) -> Result<Absolute<'static>, Error> {
         let auth_uri = config.provider().auth_uri();
 
         let mut url = Url::parse(&auth_uri)
@@ -39,19 +38,16 @@ impl Adapter for HyperSyncRustlsAdapter {
             .append_pair("response_type", "code")
             .append_pair("client_id", config.client_id())
             .append_pair("redirect_uri", config.redirect_uri())
-            .append_pair("state", &state);
+            .append_pair("state", state);
 
         if !scopes.is_empty() {
             url.query_pairs_mut()
                 .append_pair("scope", &scopes.join(" "));
         }
 
-        Ok((
-            Absolute::parse(url.as_ref())
-                .map_err(|_| Error::new(ErrorKind::InvalidUri(url.to_string())))?
-                .into_owned(),
-            state,
-        ))
+        Ok(Absolute::parse(url.as_ref())
+            .map_err(|_| Error::new(ErrorKind::InvalidUri(url.to_string())))?
+            .into_owned())
     }
 
     fn exchange_code(

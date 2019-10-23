@@ -117,12 +117,14 @@ impl TokenResponse {
 /// type must be able to generate an authorization URI and perform the token
 /// exchange.
 pub trait Adapter: Send + Sync + 'static {
-    /// Generate an authorization URI and state value as described by RFC 6749 §4.1.1.
+    /// Generate an authorization URI as described by RFC 6749 §4.1.1
+    /// given configuration, state, and scopes.
     fn authorization_uri(
         &self,
         config: &OAuthConfig,
+        state: &str,
         scopes: &[&str],
-    ) -> Result<(Absolute<'static>, String), Error>;
+    ) -> Result<Absolute<'static>, Error>;
 
     /// Perform the token exchange in accordance with RFC 6749 §4.1.3 given the
     /// authorization code provided by the service.
@@ -262,7 +264,8 @@ impl<C: Callback> OAuth2<C> {
         cookies: &mut Cookies<'_>,
         scopes: &[&str],
     ) -> Result<Redirect, Error> {
-        let (uri, state) = self.adapter.authorization_uri(&self.config, scopes)?;
+        let state = super::generate_state();
+        let uri = self.adapter.authorization_uri(&self.config, &state, scopes)?;
         cookies.add_private(
             Cookie::build(STATE_COOKIE_NAME, state)
                 .same_site(SameSite::Lax)
