@@ -1,0 +1,14 @@
+[package]
+name = "user_info_custom_provider"
+version = "0.0.0"
+authors = ["Chris Zehner <cbzehner@gmail.com>"]
+publish = false
+edition = "2018"
+
+[dependencies]
+hyper = "0.10"
+hyper-sync-rustls = "=0.3.0-rc.4"
+rocket = "0.4.2"
+rocket_oauth2 = { path = "../../", features = ["hyper_sync_rustls_adapter"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
