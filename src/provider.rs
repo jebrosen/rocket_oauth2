@@ -13,8 +13,12 @@ pub trait Provider: Send + Sync + 'static {
     fn token_uri(&self) -> Cow<'_, str>;
 }
 
-/// A `StaticProvider` contains the authorization and token exchange URIs
-/// specific to a known OAuth service provider.
+/// A `StaticProvider` contains authorization and token exchange URIs specific
+/// to an OAuth service provider, that will not change after they are
+/// determined.
+///
+/// If the service provider's URIs might change at runtime, implement
+/// [`Provider`] for your own type instead.
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub struct StaticProvider {
     /// The authorization URI associated with the service provider.

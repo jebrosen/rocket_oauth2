@@ -124,6 +124,32 @@
 //! # ;
 //! # }
 //! ```
+//!
+//! ### Provider selection
+//!
+//! Providers can be specified as a known provider name (case-insensitive).  The
+//! known provider names are listed as associated constants on the
+//! [`StaticProvider`] type.
+//!
+//! ```toml
+//! [global.oauth.github]
+//! # Using a known provider name
+//! provider = "GitHub"
+//! client_id = "..."
+//! client_secret = "..."
+//! redirect_uri = "http://localhost:8000/auth/github"
+//! ```
+//!
+//! The provider can also be specified as a table with `auth_uri` and
+//! `token_uri` values:
+//!
+//! ```toml
+//! [global.oauth.custom]
+//! provider = { auth_uri = "https://example.com/oauth/authorize", token_uri = "https://example.com/oauth/token" }
+//! client_id = "..."
+//! client_secret = "..."
+//! redirect_uri = "http://localhost:8000/auth/custom"
+//! ```
 
 #![warn(future_incompatible, nonstandard_style, missing_docs)]
 
