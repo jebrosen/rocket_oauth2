@@ -11,7 +11,6 @@ use rocket::fairing::Fairing;
 use rocket::http::{Cookie, Cookies, SameSite};
 use rocket::request::Request;
 use rocket::response::Redirect;
-use rocket_oauth2::hyper_sync_rustls_adapter::HyperSyncRustlsAdapter;
 use rocket_oauth2::{OAuth2, TokenResponse};
 use serde_json;
 
@@ -29,7 +28,6 @@ struct GitHubUserInfo {
 /// to specify the custom provider attributes.
 pub fn fairing() -> impl Fairing {
     OAuth2::fairing(
-        HyperSyncRustlsAdapter,
         post_install_callback,
         "github",
         "/auth/github",

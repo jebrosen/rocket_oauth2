@@ -13,7 +13,6 @@ use rocket::http::{Cookie, Cookies, SameSite};
 use rocket::request::{self, FromRequest, Request};
 use rocket::response::Redirect;
 use rocket::{get, routes, Outcome};
-use rocket_oauth2::hyper_sync_rustls_adapter::HyperSyncRustlsAdapter;
 use rocket_oauth2::{OAuth2, TokenResponse};
 use serde_json::{self, Value};
 
@@ -170,21 +169,18 @@ fn main() {
     rocket::ignite()
         .mount("/", routes![index, index_anonymous, logout])
         .attach(OAuth2::fairing(
-            HyperSyncRustlsAdapter,
             github_callback,
             "github",
             "/auth/github",
             Some(("/login/github", vec!["user:read".to_string()])),
         ))
         .attach(OAuth2::fairing(
-            HyperSyncRustlsAdapter,
             google_callback,
             "google",
             "/auth/google",
             Some(("/login/google", vec!["profile".to_string()])),
         ))
         .attach(OAuth2::fairing(
-            HyperSyncRustlsAdapter,
             microsoft_callback,
             "microsoft",
             "/auth/microsoft",

@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+### Changed
+- Removed the `A` type parameter from `OAuth2::fairing()`.
+  To use a custom `Adapter`, use `OAuth2::custom()`.
+
 ## 0.2.0 - 2020-04-11
 ### Added
 - More complete documentation and examples of custom Provider usage

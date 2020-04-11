@@ -100,7 +100,6 @@
 //! # use rocket::response::Redirect;
 //! use rocket::fairing::AdHoc;
 //! use rocket_oauth2::{Callback, OAuth2, OAuthConfig, TokenResponse};
-//! use rocket_oauth2::hyper_sync_rustls_adapter::HyperSyncRustlsAdapter;
 //!
 //! # fn github_callback(request: &Request, token: TokenResponse)
 //! #     -> Result<Redirect, Box<::std::error::Error>>
@@ -111,7 +110,6 @@
 //! # fn check_only() {
 //! rocket::ignite()
 //! .attach(OAuth2::fairing(
-//!     HyperSyncRustlsAdapter,
 //!     github_callback,
 //!     "github",
 //!
@@ -360,12 +358,12 @@ pub struct OAuth2<C> {
     rng: SystemRandom,
 }
 
+#[cfg(feature = "hyper_sync_rustls_adapter")]
 impl<C: Callback> OAuth2<C> {
     /// Returns an OAuth2 fairing. The fairing will place an instance of
     /// `OAuth2<C>` in managed state and mount a redirect handler. It will
     /// also mount a login handler if `login` is `Some`.
-    pub fn fairing<A: Adapter>(
-        adapter: A,
+    pub fn fairing(
         callback: C,
         config_name: &str,
         callback_uri: &str,
@@ -392,7 +390,7 @@ impl<C: Callback> OAuth2<C> {
             };
 
             Ok(rocket.attach(Self::custom(
-                adapter,
+                hyper_sync_rustls_adapter::HyperSyncRustlsAdapter,
                 callback,
                 config,
                 &callback_uri,
@@ -400,7 +398,9 @@ impl<C: Callback> OAuth2<C> {
             )))
         })
     }
+}
 
+impl<C: Callback> OAuth2<C> {
     /// Returns an OAuth2 fairing with custom configuration. The fairing will
     /// place an instance of `OAuth2<C>` in managed state and mount a
     /// redirect handler. It will also mount a login handler if `login` is
