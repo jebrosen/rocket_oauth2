@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   To use a custom `Adapter`, use `OAuth2::custom()`.
 - Removed the `Callback` trait. Callbacks are now implemented
   as regular routes that use the `TokenResponse` request guard.
+- `OAuth2` is no longer placed in managed state. Instead, `OAuth2`
+  implements `FromRequest`.
 
 ## 0.2.0 - 2020-04-11
 ### Added
