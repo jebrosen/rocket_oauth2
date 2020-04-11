@@ -7,9 +7,8 @@ use hyper::{
     Client,
 };
 use hyper_sync_rustls;
-use rocket::fairing::Fairing;
+use rocket::fairing::{AdHoc, Fairing};
 use rocket::http::{Cookie, Cookies, SameSite};
-use rocket::request::Request;
 use rocket::response::Redirect;
 use rocket_oauth2::{OAuth2, TokenResponse};
 use serde_json;
@@ -27,20 +26,23 @@ struct GitHubUserInfo {
 /// config_name which must match the key used in Rocket.toml
 /// to specify the custom provider attributes.
 pub fn fairing() -> impl Fairing {
-    OAuth2::fairing(
-        post_install_callback,
-        "github",
-        "/auth/github",
-        Some(("/login/github", vec![String::from("user:read")])),
-    )
+    AdHoc::on_attach("Github OAuth2", |rocket| {
+        Ok(rocket
+            .mount("/", rocket::routes![post_install_callback])
+            .attach(OAuth2::<GitHubUserInfo>::fairing(
+                "github",
+                Some(("/login/github", vec![String::from("user:read")])),
+            ))
+        )
+    })
 }
 
 /// Callback to handle the authenticated token recieved from GitHub
 /// and store it as a private cookie
-fn post_install_callback(
-    request: &Request<'_>,
-    token: TokenResponse,
-) -> Result<Redirect, Box<dyn (::std::error::Error)>> {
+#[rocket::get("/auth/github")]
+fn post_install_callback(token: TokenResponse<GitHubUserInfo>, mut cookies: Cookies<'_>)
+    -> Result<Redirect, Box<dyn (::std::error::Error)>>
+{
     let https = HttpsConnector::new(hyper_sync_rustls::TlsClient::new());
     let client = Client::with_connector(https);
 
@@ -62,7 +64,6 @@ fn post_install_callback(
     let user_info: GitHubUserInfo = serde_json::from_reader(response.take(2 * 1024 * 1024))?;
 
     // Set a private cookie with the user's name, and redirect to the home page.
-    let mut cookies = request.guard::<Cookies<'_>>().expect("request cookies");
     cookies.add_private(
         Cookie::build("username", user_info.name)
             .same_site(SameSite::Lax)

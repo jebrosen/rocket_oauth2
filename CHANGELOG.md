@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Removed the `A` type parameter from `OAuth2::fairing()`.
   To use a custom `Adapter`, use `OAuth2::custom()`.
+- Removed the `Callback` trait. Callbacks are now implemented
+  as regular routes that use the `TokenResponse` request guard.
 
 ## 0.2.0 - 2020-04-11
 ### Added

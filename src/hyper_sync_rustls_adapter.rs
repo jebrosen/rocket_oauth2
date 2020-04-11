@@ -54,7 +54,7 @@ impl Adapter for HyperSyncRustlsAdapter {
         &self,
         config: &OAuthConfig,
         token: TokenRequest,
-    ) -> Result<TokenResponse, Error> {
+    ) -> Result<TokenResponse<()>, Error> {
         let https = HttpsConnector::new(hyper_sync_rustls::TlsClient::new());
         let client = Client::with_connector(https);
 

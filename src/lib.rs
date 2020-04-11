@@ -55,22 +55,24 @@
 //! rocket_oauth2 = { version = "0.0.0" }
 //! ```
 //!
-//! Implement `Callback` for your type, or write a free function:
+//! Implement a callback route:
 //!
 //! ```rust
-//! # extern crate rocket;
+//! # #![feature(proc_macro_hygiene, decl_macro)]
+//! # #[macro_use] extern crate rocket;
 //! # extern crate rocket_oauth2;
 //! # use rocket::http::{Cookie, Cookies, SameSite};
 //! # use rocket::Request;
 //! # use rocket::response::Redirect;
-//! use rocket_oauth2::{Callback, OAuth2, TokenResponse};
+//! use rocket_oauth2::{OAuth2, TokenResponse};
 //! use rocket_oauth2::hyper_sync_rustls_adapter::HyperSyncRustlsAdapter;
 //!
-//! fn github_callback(request: &Request, token: TokenResponse)
+//! struct GitHub;
+//!
+//! #[get("/auth/github")]
+//! fn github_callback(token: TokenResponse<GitHub>, mut cookies: Cookies<'_>)
 //!     -> Result<Redirect, Box<::std::error::Error>>
 //! {
-//!     let mut cookies = request.guard::<Cookies>().expect("request cookies");
-//!
 //!     // Set a private cookie with the access token
 //!     cookies.add_private(
 //!         Cookie::build("token", token.access_token().to_string())
@@ -93,15 +95,19 @@
 //! Create and attach the [`OAuth2`] fairing:
 //!
 //! ```rust
-//! # extern crate rocket;
+//! # #![feature(proc_macro_hygiene, decl_macro)]
+//! # #[macro_use] extern crate rocket;
 //! # extern crate rocket_oauth2;
 //! # use rocket::http::{Cookie, Cookies, SameSite};
 //! # use rocket::Request;
 //! # use rocket::response::Redirect;
 //! use rocket::fairing::AdHoc;
-//! use rocket_oauth2::{Callback, OAuth2, OAuthConfig, TokenResponse};
+//! use rocket_oauth2::{OAuth2, OAuthConfig, TokenResponse};
 //!
-//! # fn github_callback(request: &Request, token: TokenResponse)
+//! # struct GitHub;
+//!
+//! # #[get("/auth/github")]
+//! # fn github_callback(token: TokenResponse<GitHub>, mut cookies: Cookies<'_>)
 //! #     -> Result<Redirect, Box<::std::error::Error>>
 //! # {
 //! #     unimplemented!();
@@ -109,12 +115,9 @@
 //!
 //! # fn check_only() {
 //! rocket::ignite()
-//! .attach(OAuth2::fairing(
-//!     github_callback,
+//! .mount("/", routes![])
+//! .attach(OAuth2::<GitHub>::fairing(
 //!     "github",
-//!
-//!     // Set up a handler for the redirect uri
-//!     "/auth/github",
 //!
 //!     // Set up a redirect from /login/github that will request the 'user:read' scope
 //!     Some(("/login/github", vec!["user:read".to_string()])),
@@ -161,16 +164,16 @@ pub use self::config::*;
 pub use self::error::*;
 
 use std::fmt;
+use std::marker::PhantomData;
 
 use ring::rand::{SecureRandom, SystemRandom};
 use rocket::fairing::{AdHoc, Fairing};
 use rocket::handler;
 use rocket::http::uri::Absolute;
 use rocket::http::{Cookie, Cookies, Method, SameSite, Status};
-use rocket::outcome::{IntoOutcome, Outcome};
-use rocket::request::{FormItems, FromForm, Request};
-use rocket::response::{Redirect, Responder};
-use rocket::{Data, Route, State};
+use rocket::request::{self, FormItems, FromForm, FromRequest, Request};
+use rocket::response::Redirect;
+use rocket::{Data, Outcome, Route, State};
 use serde_json::Value;
 
 const STATE_COOKIE_NAME: &str = "rocket_oauth2_state";
@@ -199,12 +202,16 @@ pub enum TokenRequest {
 
 /// The server's response to a successful token exchange, defined in
 /// in RFC 6749 §5.1.
+///
+/// `TokenResponse<K>` implements `FromRequest`, and is used in the callback
+/// route to complete the token exchange.
 #[derive(Clone, PartialEq, Debug)]
-pub struct TokenResponse {
+pub struct TokenResponse<K> {
     data: Value,
+    _k: PhantomData<fn() -> K>,
 }
 
-impl std::convert::TryFrom<Value> for TokenResponse {
+impl std::convert::TryFrom<Value> for TokenResponse<()> {
     type Error = Error;
 
     /// Construct a TokenResponse from a [Value].
@@ -237,11 +244,91 @@ impl std::convert::TryFrom<Value> for TokenResponse {
             }
         }
 
-        Ok(Self { data })
+        Ok(Self { data, _k: PhantomData })
     }
 }
 
-impl TokenResponse {
+impl<K> TokenResponse<K> {
+    /// Reinterprets this `TokenResponse` as if it were keyed by `L` instead.
+    /// This function can be used to "funnel" disparate `TokenResponse`s into a
+    /// single concrete type such as `TokenResponse<()>`.
+    pub fn cast<L>(self) -> TokenResponse<L> {
+        TokenResponse { data: self.data, _k: PhantomData }
+    }
+}
+
+impl<'a, 'r, K: 'static> FromRequest<'a, 'r> for TokenResponse<K> {
+    type Error = Error;
+
+    // TODO: Decide if BadRequest is the appropriate error code.
+    // TODO: What do providers do if they *reject* the authorization?
+    /// Handle the redirect callback, delegating to the adapter and callback to
+    /// perform the token exchange and application-specific actions.
+    fn from_request(request: &'a Request<'r>) -> request::Outcome<Self, Self::Error> {
+        let oauth2 = request.guard::<State<OAuth2<K>>>().expect("OAuth2 fairing was not attached for this key type!");
+
+        // Parse the query data.
+        let query = match request.uri().query() {
+            Some(q) => q,
+            None => return Outcome::Failure((Status::BadRequest, Error::new_from(
+                ErrorKind::ExchangeFailure, "Missing query string in request"
+            ))),
+        };
+
+        #[derive(FromForm)]
+        struct CallbackQuery {
+            code: String,
+            state: String,
+            // Nonstandard (but see below)
+            scope: Option<String>,
+        }
+
+        let params = match CallbackQuery::from_form(&mut FormItems::from(query), false) {
+            Ok(p) => p,
+            Err(e) => return Outcome::Failure((Status::BadRequest, Error::new_from(
+                ErrorKind::ExchangeFailure, format!("{:?}", e)
+            ))),
+        };
+
+        {
+            // Verify that the given state is the same one in the cookie.
+            // Begin a new scope so that cookies is not kept around too long.
+            let mut cookies = request.guard::<Cookies<'_>>().expect("request cookies");
+            match cookies.get_private(STATE_COOKIE_NAME) {
+                Some(ref cookie) if cookie.value() == params.state => {
+                    cookies.remove(cookie.clone());
+                }
+                _ => return Outcome::Failure((Status::BadRequest, Error::new_from(
+                    ErrorKind::ExchangeFailure, "The state returned from the server did match the stored state."
+                ))),
+            }
+        }
+
+        // Have the adapter perform the token exchange.
+        match oauth2
+            .adapter
+            .exchange_code(&oauth2.config, TokenRequest::AuthorizationCode(params.code))
+        {
+            Ok(mut token) => {
+                // Some providers (at least Strava) provide 'scope' in the callback
+                // parameters instead of the token response as the RFC prescribes.
+                // Therefore the 'scope' from the callback params is used as a fallback
+                // if the token response does not specify one.
+                let data = token
+                    .data
+                    .as_object_mut()
+                    .expect("data is guaranteed to be an Object");
+                if let (None, Some(scope)) = (data.get("scope"), params.scope) {
+                    data.insert(String::from("scope"), Value::String(scope));
+                }
+                Outcome::Success(token.cast())
+            }
+            Err(e) => Outcome::Failure((Status::BadRequest, e)),
+        }
+    }
+}
+
+impl<K> TokenResponse<K> {
     /// Get the TokenResponse data as a raw JSON [Value]. It is guaranteed to
     /// be of type Object.
     pub fn as_value(&self) -> &Value {
@@ -306,35 +393,7 @@ pub trait Adapter: Send + Sync + 'static {
         &self,
         config: &OAuthConfig,
         token: TokenRequest,
-    ) -> Result<TokenResponse, Error>;
-}
-
-/// An OAuth2 `Callback` implements application-specific OAuth client logic,
-/// such as setting login cookies and making database and API requests. It is
-/// tied to a specific `Adapter`, and will recieve an instance of the Adapter's
-/// `Token` type.
-pub trait Callback: Send + Sync + 'static {
-    // TODO: Relax 'static. Would this need GAT/ATC?
-    /// The callback Responder type.
-    type Responder: Responder<'static>;
-
-    /// This method will be called when a token exchange has successfully
-    /// completed and will be provided with the request and the token.
-    /// Implementors should perform application-specific logic here, such as
-    /// checking a database or setting a login cookie.
-    fn callback(&self, request: &Request<'_>, token: TokenResponse) -> Self::Responder;
-}
-
-impl<F, R> Callback for F
-where
-    F: Fn(&Request<'_>, TokenResponse) -> R + Send + Sync + 'static,
-    R: Responder<'static>,
-{
-    type Responder = R;
-
-    fn callback(&self, request: &Request<'_>, token: TokenResponse) -> Self::Responder {
-        (self)(request, token)
-    }
+    ) -> Result<TokenResponse<()>, Error>;
 }
 
 /// The `OAuth2` structure implements OAuth in a Rocket application by setting
@@ -350,28 +409,25 @@ where
 /// authorization URI generated by the `Adapter`. Whether or not `OAuth2` is
 /// handling a login URI, `get_redirect` can be used to get a `Redirect` to the
 /// OAuth login flow manually.
-pub struct OAuth2<C> {
+pub struct OAuth2<K> {
     adapter: Box<dyn Adapter>,
-    callback: C,
     config: OAuthConfig,
     login_scopes: Vec<String>,
     rng: SystemRandom,
+    _k: PhantomData<fn() -> TokenResponse<K>>,
 }
 
 #[cfg(feature = "hyper_sync_rustls_adapter")]
-impl<C: Callback> OAuth2<C> {
+impl<K: 'static> OAuth2<K> {
     /// Returns an OAuth2 fairing. The fairing will place an instance of
-    /// `OAuth2<C>` in managed state and mount a redirect handler. It will
+    /// `OAuth2<K>` in managed state and mount a redirect handler. It will
     /// also mount a login handler if `login` is `Some`.
     pub fn fairing(
-        callback: C,
         config_name: &str,
-        callback_uri: &str,
         login: Option<(&str, Vec<String>)>,
     ) -> impl Fairing {
         // Unfortunate allocations, but necessary because on_attach requires 'static
         let config_name = config_name.to_string();
-        let callback_uri = callback_uri.to_string();
         let mut login = login.map(|(lu, ls)| (lu.to_string(), ls));
 
         AdHoc::on_attach("OAuth Init", move |rocket| {
@@ -391,43 +447,37 @@ impl<C: Callback> OAuth2<C> {
 
             Ok(rocket.attach(Self::custom(
                 hyper_sync_rustls_adapter::HyperSyncRustlsAdapter,
-                callback,
                 config,
-                &callback_uri,
                 new_login,
             )))
         })
     }
 }
 
-impl<C: Callback> OAuth2<C> {
+impl<K: 'static> OAuth2<K> {
     /// Returns an OAuth2 fairing with custom configuration. The fairing will
     /// place an instance of `OAuth2<C>` in managed state and mount a
     /// redirect handler. It will also mount a login handler if `login` is
     /// `Some`.
     pub fn custom<A: Adapter>(
         adapter: A,
-        callback: C,
         config: OAuthConfig,
-        callback_uri: &str,
         login: Option<(&str, Vec<String>)>,
     ) -> impl Fairing {
         let mut routes = Vec::new();
 
-        routes.push(Route::new(Method::Get, callback_uri, redirect_handler::<C>));
-
         let mut login_scopes = vec![];
         if let Some((uri, scopes)) = login {
-            routes.push(Route::new(Method::Get, uri, login_handler::<C>));
+            routes.push(Route::new(Method::Get, uri, login_handler::<K>));
             login_scopes = scopes;
         }
 
         let oauth2 = Self {
             adapter: Box::new(adapter),
-            callback,
             config,
             login_scopes,
             rng: SystemRandom::new(),
+            _k: PhantomData,
         };
 
         AdHoc::on_attach("OAuth Mount", |rocket| {
@@ -456,82 +506,19 @@ impl<C: Callback> OAuth2<C> {
 
     /// Request a new access token given a refresh token. The refresh token
     /// must have been returned by the provider in a previous [`TokenResponse`].
-    pub fn refresh(&self, refresh_token: &str) -> Result<TokenResponse, Error> {
+    pub fn refresh(&self, refresh_token: &str) -> Result<TokenResponse<K>, Error> {
         self.adapter.exchange_code(
             &self.config,
             TokenRequest::RefreshToken(refresh_token.to_string()),
-        )
+        ).map(TokenResponse::cast)
     }
 
-    // TODO: Decide if BadRequest is the appropriate error code.
-    // TODO: What do providers do if they *reject* the authorization?
-    /// Handle the redirect callback, delegating to the adapter and callback to
-    /// perform the token exchange and application-specific actions.
-    fn handle<'r>(&self, request: &'r Request<'_>, _data: Data) -> handler::Outcome<'r> {
-        // Parse the query data.
-        let query = request.uri().query().into_outcome(Status::BadRequest)?;
-
-        #[derive(FromForm)]
-        struct CallbackQuery {
-            code: String,
-            state: String,
-            // Nonstandard (but see below)
-            scope: Option<String>,
-        }
-
-        let params = match CallbackQuery::from_form(&mut FormItems::from(query), false) {
-            Ok(p) => p,
-            Err(_) => return handler::Outcome::failure(Status::BadRequest),
-        };
-
-        {
-            // Verify that the given state is the same one in the cookie.
-            // Begin a new scope so that cookies is not kept around too long.
-            let mut cookies = request.guard::<Cookies<'_>>().expect("request cookies");
-            match cookies.get_private(STATE_COOKIE_NAME) {
-                Some(ref cookie) if cookie.value() == params.state => {
-                    cookies.remove(cookie.clone());
-                }
-                _ => return handler::Outcome::failure(Status::BadRequest),
-            }
-        }
-
-        // Have the adapter perform the token exchange.
-        let token = match self
-            .adapter
-            .exchange_code(&self.config, TokenRequest::AuthorizationCode(params.code))
-        {
-            Ok(mut token) => {
-                // Some providers (at least Strava) provide 'scope' in the callback
-                // parameters instead of the token response as the RFC prescribes.
-                // Therefore the 'scope' from the callback params is used as a fallback
-                // if the token response does not specify one.
-                let data = token
-                    .data
-                    .as_object_mut()
-                    .expect("data is guaranteed to be an Object");
-                if let (None, Some(scope)) = (data.get("scope"), params.scope) {
-                    data.insert(String::from("scope"), Value::String(scope));
-                }
-                token
-            }
-            Err(e) => {
-                log::error!("Token exchange failed: {:?}", e);
-                return handler::Outcome::failure(Status::BadRequest);
-            }
-        };
-
-        // Run the callback.
-        let responder = self.callback.callback(request, token);
-        handler::Outcome::from(request, responder)
-    }
 }
 
 impl<C: fmt::Debug> fmt::Debug for OAuth2<C> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_struct("OAuth2")
             .field("adapter", &(..))
-            .field("callback", &self.callback)
             .field("config", &self.config)
             .field("login_scopes", &self.login_scopes)
             .finish()
@@ -541,19 +528,9 @@ impl<C: fmt::Debug> fmt::Debug for OAuth2<C> {
 // These cannot be closures becuase of the lifetime parameter.
 // TODO: cross-reference rust-lang/rust issues.
 
-/// Handles the OAuth redirect route
-fn redirect_handler<'r, C: Callback>(request: &'r Request<'_>, data: Data) -> handler::Outcome<'r> {
-    let oauth = match request.guard::<State<'_, OAuth2<C>>>() {
-        Outcome::Success(oauth) => oauth,
-        Outcome::Failure(_) => return handler::Outcome::failure(Status::InternalServerError),
-        Outcome::Forward(()) => unreachable!(),
-    };
-    oauth.handle(request, data)
-}
-
 /// Handles a login route, performing a redirect
-fn login_handler<'r, C: Callback>(request: &'r Request<'_>, _data: Data) -> handler::Outcome<'r> {
-    let oauth = match request.guard::<State<'_, OAuth2<C>>>() {
+fn login_handler<'r, K: 'static>(request: &'r Request<'_>, _data: Data) -> handler::Outcome<'r> {
+    let oauth = match request.guard::<State<'_, OAuth2<K>>>() {
         Outcome::Success(oauth) => oauth,
         Outcome::Failure(_) => return handler::Outcome::failure(Status::InternalServerError),
         Outcome::Forward(()) => unreachable!(),

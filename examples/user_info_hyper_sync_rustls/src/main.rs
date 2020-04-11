@@ -42,10 +42,10 @@ struct GitHubUserInfo {
     name: String,
 }
 
-fn github_callback(
-    request: &Request<'_>,
-    token: TokenResponse,
-) -> Result<Redirect, Box<dyn (::std::error::Error)>> {
+#[get("/auth/github")]
+fn github_callback(token: TokenResponse<GitHubUserInfo>, mut cookies: Cookies<'_>)
+    -> Result<Redirect, Box<dyn (::std::error::Error)>>
+{
     let https = HttpsConnector::new(hyper_sync_rustls::TlsClient::new());
     let client = Client::with_connector(https);
 
@@ -67,7 +67,6 @@ fn github_callback(
     let user_info: GitHubUserInfo = serde_json::from_reader(response.take(2 * 1024 * 1024))?;
 
     // Set a private cookie with the user's name, and redirect to the home page.
-    let mut cookies = request.guard::<Cookies<'_>>().expect("request cookies");
     cookies.add_private(
         Cookie::build("username", user_info.name)
             .same_site(SameSite::Lax)
@@ -82,10 +81,10 @@ struct GoogleUserInfo {
     names: Vec<Value>,
 }
 
-fn google_callback(
-    request: &Request<'_>,
-    token: TokenResponse,
-) -> Result<Redirect, Box<dyn (::std::error::Error)>> {
+#[get("/auth/google")]
+fn google_callback(token: TokenResponse<GoogleUserInfo>, mut cookies: Cookies<'_>)
+    -> Result<Redirect, Box<dyn (::std::error::Error)>>
+{
     let https = HttpsConnector::new(hyper_sync_rustls::TlsClient::new());
     let client = Client::with_connector(https);
 
@@ -107,7 +106,6 @@ fn google_callback(
         .unwrap_or("");
 
     // Set a private cookie with the user's name, and redirect to the home page.
-    let mut cookies = request.guard::<Cookies<'_>>().expect("request cookies");
     cookies.add_private(
         Cookie::build("username", real_name.to_string())
             .same_site(SameSite::Lax)
@@ -122,10 +120,11 @@ struct MicrosoftUserInfo {
     #[serde(default, rename = "displayName")]
     display_name: String,
 }
-fn microsoft_callback(
-    request: &Request<'_>,
-    token: TokenResponse,
-) -> Result<Redirect, Box<dyn (::std::error::Error)>> {
+
+#[get("/auth/microsoft")]
+fn microsoft_callback(token: TokenResponse<MicrosoftUserInfo>, mut cookies: Cookies<'_>)
+    -> Result<Redirect, Box<dyn (::std::error::Error)>>
+{
     let https = HttpsConnector::new(hyper_sync_rustls::TlsClient::new());
     let client = Client::with_connector(https);
 
@@ -140,7 +139,6 @@ fn microsoft_callback(
     let user_info: MicrosoftUserInfo = serde_json::from_reader(response.take(2 * 1024 * 1024))?;
 
     // Set a private cookie with the user's name, and redirect to the home page.
-    let mut cookies = request.guard::<Cookies<'_>>().expect("request cookies");
     cookies.add_private(
         Cookie::build("username", user_info.display_name.to_string())
             .same_site(SameSite::Lax)
@@ -167,23 +165,24 @@ fn logout(mut cookies: Cookies<'_>) -> Redirect {
 
 fn main() {
     rocket::ignite()
-        .mount("/", routes![index, index_anonymous, logout])
-        .attach(OAuth2::fairing(
+        .mount("/", routes![
+            index,
+            index_anonymous,
+            logout,
             github_callback,
+            google_callback,
+            microsoft_callback
+        ])
+        .attach(OAuth2::<GitHubUserInfo>::fairing(
             "github",
-            "/auth/github",
             Some(("/login/github", vec!["user:read".to_string()])),
         ))
-        .attach(OAuth2::fairing(
-            google_callback,
+        .attach(OAuth2::<GoogleUserInfo>::fairing(
             "google",
-            "/auth/google",
             Some(("/login/google", vec!["profile".to_string()])),
         ))
-        .attach(OAuth2::fairing(
-            microsoft_callback,
+        .attach(OAuth2::<MicrosoftUserInfo>::fairing(
             "microsoft",
-            "/auth/microsoft",
             Some(("/login/microsoft", vec!["user.read".to_string()])),
         ))
         .launch();
