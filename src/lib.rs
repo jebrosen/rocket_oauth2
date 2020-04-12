@@ -55,7 +55,7 @@
 //! rocket_oauth2 = { version = "0.0.0" }
 //! ```
 //!
-//! Implement a callback route:
+//! Implement a callback and a login route:
 //!
 //! ```rust
 //! # #![feature(proc_macro_hygiene, decl_macro)]
@@ -68,6 +68,11 @@
 //! use rocket_oauth2::hyper_sync_rustls_adapter::HyperSyncRustlsAdapter;
 //!
 //! struct GitHub;
+//!
+//! #[get("/login/github")]
+//! fn github_login(oauth2: OAuth2<GitHub>, mut cookies: Cookies<'_>) -> Redirect {
+//!     oauth2.get_redirect(&mut cookies, &["user:read"]).unwrap()
+//! }
 //!
 //! #[get("/auth/github")]
 //! fn github_callback(token: TokenResponse<GitHub>, mut cookies: Cookies<'_>)
@@ -105,7 +110,10 @@
 //! use rocket_oauth2::{OAuth2, OAuthConfig, TokenResponse};
 //!
 //! # struct GitHub;
-//!
+//! # #[get("/login/github")]
+//! # fn github_login(oauth2: OAuth2<GitHub>, mut cookies: Cookies<'_>) -> Redirect {
+//! #     unimplemented!();
+//! # }
 //! # #[get("/auth/github")]
 //! # fn github_callback(token: TokenResponse<GitHub>, mut cookies: Cookies<'_>)
 //! #     -> Result<Redirect, Box<::std::error::Error>>
@@ -115,13 +123,8 @@
 //!
 //! # fn check_only() {
 //! rocket::ignite()
-//! .mount("/", routes![])
-//! .attach(OAuth2::<GitHub>::fairing(
-//!     "github",
-//!
-//!     // Set up a redirect from /login/github that will request the 'user:read' scope
-//!     Some(("/login/github", vec!["user:read".to_string()])),
-//! ))
+//! .mount("/", routes![github_callback, github_login])
+//! .attach(OAuth2::<GitHub>::fairing("github"))
 //! # ;
 //! # }
 //! ```
@@ -169,12 +172,11 @@ use std::sync::Arc;
 
 use ring::rand::{SecureRandom, SystemRandom};
 use rocket::fairing::{AdHoc, Fairing};
-use rocket::handler;
 use rocket::http::uri::Absolute;
-use rocket::http::{Cookie, Cookies, Method, SameSite, Status};
+use rocket::http::{Cookie, Cookies, SameSite, Status};
 use rocket::request::{self, FormItems, FromForm, FromRequest, Request};
 use rocket::response::Redirect;
-use rocket::{Data, Outcome, Route, State};
+use rocket::{Outcome, State};
 use serde_json::Value;
 
 const STATE_COOKIE_NAME: &str = "rocket_oauth2_state";
@@ -403,7 +405,6 @@ pub trait Adapter: Send + Sync + 'static {
 struct Shared<K> {
     adapter: Box<dyn Adapter>,
     config: OAuthConfig,
-    login_scopes: Vec<String>,
     rng: SystemRandom,
     _k: PhantomData<fn() -> TokenResponse<K>>,
 }
@@ -428,13 +429,9 @@ impl<K: 'static> OAuth2<K> {
     /// Returns an OAuth2 fairing. The fairing will place an instance of
     /// `OAuth2<K>` in managed state and mount a redirect handler. It will
     /// also mount a login handler if `login` is `Some`.
-    pub fn fairing(
-        config_name: &str,
-        login: Option<(&str, Vec<String>)>,
-    ) -> impl Fairing {
+    pub fn fairing(config_name: &str) -> impl Fairing {
         // Unfortunate allocations, but necessary because on_attach requires 'static
         let config_name = config_name.to_string();
-        let mut login = login.map(|(lu, ls)| (lu.to_string(), ls));
 
         AdHoc::on_attach("OAuth Init", move |rocket| {
             let config = match OAuthConfig::from_config(rocket.config(), &config_name) {
@@ -445,16 +442,9 @@ impl<K: 'static> OAuth2<K> {
                 }
             };
 
-            let mut new_login = None;
-            if let Some((lu, ls)) = login.as_mut() {
-                let new_ls = std::mem::replace(ls, vec![]);
-                new_login = Some((lu.as_str(), new_ls));
-            };
-
             Ok(rocket.attach(Self::custom(
                 hyper_sync_rustls_adapter::HyperSyncRustlsAdapter,
                 config,
-                new_login,
             )))
         })
     }
@@ -468,26 +458,16 @@ impl<K: 'static> OAuth2<K> {
     pub fn custom<A: Adapter>(
         adapter: A,
         config: OAuthConfig,
-        login: Option<(&str, Vec<String>)>,
     ) -> impl Fairing {
-        let mut routes = Vec::new();
-
-        let mut login_scopes = vec![];
-        if let Some((uri, scopes)) = login {
-            routes.push(Route::new(Method::Get, uri, login_handler::<K>));
-            login_scopes = scopes;
-        }
-
         let shared = Shared::<K> {
             adapter: Box::new(adapter),
             config,
-            login_scopes,
             rng: SystemRandom::new(),
             _k: PhantomData,
         };
 
         AdHoc::on_attach("OAuth Mount", |rocket| {
-            Ok(rocket.manage(Arc::new(shared)).mount("/", routes))
+            Ok(rocket.manage(Arc::new(shared)))
         })
     }
 
@@ -540,22 +520,6 @@ impl<C: fmt::Debug> fmt::Debug for OAuth2<C> {
         f.debug_struct("OAuth2")
             .field("adapter", &(..))
             .field("config", &self.0.config)
-            .field("login_scopes", &self.0.login_scopes)
             .finish()
     }
-}
-
-// These cannot be closures becuase of the lifetime parameter.
-// TODO: cross-reference rust-lang/rust issues.
-
-/// Handles a login route, performing a redirect
-fn login_handler<'r, K: 'static>(request: &'r Request<'_>, _data: Data) -> handler::Outcome<'r> {
-    let oauth = match request.guard::<OAuth2<K>>() {
-        Outcome::Success(oauth) => oauth,
-        Outcome::Failure(_) => return handler::Outcome::failure(Status::InternalServerError),
-        Outcome::Forward(()) => unreachable!(),
-    };
-    let mut cookies = request.guard::<Cookies<'_>>().expect("request cookies");
-    let scopes: Vec<_> = oauth.0.login_scopes.iter().map(String::as_str).collect();
-    handler::Outcome::from(request, oauth.get_redirect(&mut cookies, &scopes))
 }

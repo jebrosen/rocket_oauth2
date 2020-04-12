@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   as regular routes that use the `TokenResponse` request guard.
 - `OAuth2` is no longer placed in managed state. Instead, `OAuth2`
   implements `FromRequest`.
+### Removed
+- Removed the automatic creation of login routes. Instead,
+  `get_redirect()` can be called from a user-defined login route.
 
 ## 0.2.0 - 2020-04-11
 ### Added

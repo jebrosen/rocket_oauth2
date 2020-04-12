@@ -28,13 +28,15 @@ struct GitHubUserInfo {
 pub fn fairing() -> impl Fairing {
     AdHoc::on_attach("Github OAuth2", |rocket| {
         Ok(rocket
-            .mount("/", rocket::routes![post_install_callback])
-            .attach(OAuth2::<GitHubUserInfo>::fairing(
-                "github",
-                Some(("/login/github", vec![String::from("user:read")])),
-            ))
+            .mount("/", rocket::routes![github_login, post_install_callback])
+            .attach(OAuth2::<GitHubUserInfo>::fairing("github"))
         )
     })
+}
+
+#[rocket::get("/login/github")]
+fn github_login(oauth2: OAuth2<GitHubUserInfo>, mut cookies: Cookies<'_>) -> Redirect {
+    oauth2.get_redirect(&mut cookies, &["user:read"]).unwrap()
 }
 
 /// Callback to handle the authenticated token recieved from GitHub

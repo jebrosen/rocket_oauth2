@@ -42,6 +42,11 @@ struct GitHubUserInfo {
     name: String,
 }
 
+#[get("/login/github")]
+fn github_login(oauth2: OAuth2<GitHubUserInfo>, mut cookies: Cookies<'_>) -> Redirect {
+    oauth2.get_redirect(&mut cookies, &["user:read"]).unwrap()
+}
+
 #[get("/auth/github")]
 fn github_callback(token: TokenResponse<GitHubUserInfo>, mut cookies: Cookies<'_>)
     -> Result<Redirect, Box<dyn (::std::error::Error)>>
@@ -79,6 +84,11 @@ fn github_callback(token: TokenResponse<GitHubUserInfo>, mut cookies: Cookies<'_
 #[derive(serde::Deserialize)]
 struct GoogleUserInfo {
     names: Vec<Value>,
+}
+
+#[get("/login/google")]
+fn google_login(oauth2: OAuth2<GoogleUserInfo>, mut cookies: Cookies<'_>) -> Redirect {
+    oauth2.get_redirect(&mut cookies, &["profile"]).unwrap()
 }
 
 #[get("/auth/google")]
@@ -119,6 +129,11 @@ fn google_callback(token: TokenResponse<GoogleUserInfo>, mut cookies: Cookies<'_
 struct MicrosoftUserInfo {
     #[serde(default, rename = "displayName")]
     display_name: String,
+}
+
+#[get("/login/microsoft")]
+fn microsoft_login(oauth2: OAuth2<MicrosoftUserInfo>, mut cookies: Cookies<'_>) -> Redirect {
+    oauth2.get_redirect(&mut cookies, &["user.read"]).unwrap()
 }
 
 #[get("/auth/microsoft")]
@@ -171,19 +186,13 @@ fn main() {
             logout,
             github_callback,
             google_callback,
-            microsoft_callback
+            microsoft_callback,
+            github_login,
+            google_login,
+            microsoft_login,
         ])
-        .attach(OAuth2::<GitHubUserInfo>::fairing(
-            "github",
-            Some(("/login/github", vec!["user:read".to_string()])),
-        ))
-        .attach(OAuth2::<GoogleUserInfo>::fairing(
-            "google",
-            Some(("/login/google", vec!["profile".to_string()])),
-        ))
-        .attach(OAuth2::<MicrosoftUserInfo>::fairing(
-            "microsoft",
-            Some(("/login/microsoft", vec!["user.read".to_string()])),
-        ))
+        .attach(OAuth2::<GitHubUserInfo>::fairing("github"))
+        .attach(OAuth2::<GoogleUserInfo>::fairing("google"))
+        .attach(OAuth2::<MicrosoftUserInfo>::fairing("microsoft"))
         .launch();
 }
