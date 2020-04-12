@@ -1,14 +1,14 @@
 [package]
-name = "user_info_hyper_rustls"
+name = "user_info_custom_provider"
 version = "0.0.0"
-authors = ["jeb <jeb@jebrosen.com>"]
+authors = ["Chris Zehner <cbzehner@gmail.com>"]
 publish = false
 edition = "2018"
 
 [dependencies]
-futures  = "0.3"
+futures-util = "0.3"
 hyper = "0.13"
-hyper-rustls = "0.20.0"
+hyper-rustls = "0.20"
 rocket = { git = "https://github.com/SergioBenitez/Rocket", branch = "async" }
 rocket_oauth2 = { path = "../../", features = ["hyper_rustls_adapter"] }
 serde = { version = "1.0", features = ["derive"] }

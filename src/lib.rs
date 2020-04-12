@@ -18,11 +18,11 @@
 //! * Built-in support for a few popular OAuth2 providers
 //! * Support for custom providers
 //! * Support for custom adapters
+//! * Refreshing tokens
 //!
 //! ## Not-yet-planned Features
 //!
 //! * Grant types other than Authorization Code.
-//! * Refresh token support
 //!
 //! ## Design
 //!
@@ -73,7 +73,7 @@
 //!
 //!     // Set a private cookie with the access token
 //!     cookies.add_private(
-//!         Cookie::build("token", token.access_token)
+//!         Cookie::build("token", token.access_token().to_string())
 //!             .same_site(SameSite::Lax)
 //!             .finish()
 //!     );
@@ -125,21 +125,44 @@
 //! # ;
 //! # }
 //! ```
+//!
+//! ### Provider selection
+//!
+//! Providers can be specified as a known provider name (case-insensitive).  The
+//! known provider names are listed as associated constants on the
+//! [`StaticProvider`] type.
+//!
+//! ```toml
+//! [global.oauth.github]
+//! # Using a known provider name
+//! provider = "GitHub"
+//! client_id = "..."
+//! client_secret = "..."
+//! redirect_uri = "http://localhost:8000/auth/github"
+//! ```
+//!
+//! The provider can also be specified as a table with `auth_uri` and
+//! `token_uri` values:
+//!
+//! ```toml
+//! [global.oauth.custom]
+//! provider = { auth_uri = "https://example.com/oauth/authorize", token_uri = "https://example.com/oauth/token" }
+//! client_id = "..."
+//! client_secret = "..."
+//! redirect_uri = "http://localhost:8000/auth/custom"
+//! ```
 
 #![warn(future_incompatible, nonstandard_style, missing_docs)]
 
 mod config;
 mod core;
+mod error;
 mod provider;
 
 pub use self::config::*;
 pub use self::core::*;
+pub use self::error::*;
 pub use self::provider::*;
 
 #[cfg(feature = "hyper_rustls_adapter")]
 pub mod hyper_rustls_adapter;
-
-fn generate_state() -> String {
-    use rand::{distributions::Alphanumeric, thread_rng, Rng};
-    thread_rng().sample_iter(&Alphanumeric).take(20).collect()
-}

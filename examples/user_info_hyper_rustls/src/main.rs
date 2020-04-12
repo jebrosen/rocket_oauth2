@@ -1,14 +1,17 @@
 #![feature(proc_macro_hygiene)]
 
+use std::future::Future;
+use std::pin::Pin;
+
 use futures::stream::TryStreamExt;
 use hyper::{
     header::{ACCEPT, AUTHORIZATION, USER_AGENT},
     Body, Client,
 };
 use hyper_rustls::HttpsConnector;
-use rocket::http::{Cookie, Cookies, SameSite};
+use rocket::http::{Cookie, Cookies, SameSite, Status};
 use rocket::request::{self, FromRequest, Request};
-use rocket::response::{self, Redirect, Responder, ResultFuture};
+use rocket::response::{self, Redirect, Responder, Response};
 use rocket::{get, routes, Outcome};
 use rocket_oauth2::hyper_rustls_adapter::HyperRustlsAdapter;
 use rocket_oauth2::{OAuth2, TokenResponse};
@@ -18,11 +21,15 @@ struct User {
     pub username: String,
 }
 
+#[rocket::async_trait]
 impl<'a, 'r> FromRequest<'a, 'r> for User {
     type Error = ();
 
-    fn from_request(request: &'a Request<'r>) -> request::Outcome<User, ()> {
-        let mut cookies = request.guard::<Cookies<'_>>().expect("request cookies");
+    async fn from_request(request: &'a Request<'r>) -> request::Outcome<User, ()> {
+        let mut cookies = request
+            .guard::<Cookies<'_>>()
+            .await
+            .expect("request cookies");
         if let Some(cookie) = cookies.get_private("username") {
             return Outcome::Success(User {
                 username: cookie.value().to_string(),
@@ -43,14 +50,14 @@ struct GitHubUserInfo {
 fn github_callback<'r>(
     request: &'r Request<'_>,
     token: TokenResponse,
-) -> ResultFuture<'r> {
+) -> Pin<Box<dyn Future<Output = Result<Response<'r>, Status>> + Send + 'r>> {
     Box::pin(async move {
         let result: Result<_, Box<dyn std::error::Error + Send + Sync>> = async {
             let https = HttpsConnector::new();
             let client: Client<_, Body> = Client::builder().build(https);
 
             let req = hyper::Request::get("https://api.github.com/user")
-                .header(AUTHORIZATION, format!("token {}", token.access_token))
+                .header(AUTHORIZATION, format!("token {}", token.access_token()))
                 .header(ACCEPT, "application/vnd.github.v3+json")
                 .header(USER_AGENT, "rocket_oauth2 demo application")
                 .body(Body::empty())?;
@@ -62,20 +69,33 @@ fn github_callback<'r>(
                 return Err(format!("got non-success status {}", response.status()).into());
             }
 
-            let body = response.into_body().try_concat().await?;
+            let body = response
+                .into_body()
+                .try_fold(Vec::new(), |mut data, chunk| async move {
+                    data.extend_from_slice(&chunk);
+                    Ok(data)
+                })
+                .await?;
 
             let user_info: GitHubUserInfo = serde_json::from_slice(&body)?;
 
             // Set a private cookie with the user's name, and redirect to the home page.
-            let mut cookies = request.guard::<Cookies<'_>>().expect("request cookies");
+            let mut cookies = request
+                .guard::<Cookies<'_>>()
+                .await
+                .expect("request cookies");
             cookies.add_private(
                 Cookie::build("username", user_info.name)
                     .same_site(SameSite::Lax)
                     .finish(),
             );
             Ok(Redirect::to("/"))
-        }.await;
-        result.map_err(response::Debug::from).respond_to(request).await
+        }
+        .await;
+        result
+            .map_err(response::Debug::from)
+            .respond_to(request)
+            .await
     })
 }
 
@@ -88,16 +108,18 @@ struct GoogleUserInfo {
 fn google_callback<'r>(
     request: &'r Request<'_>,
     token: TokenResponse,
-) -> ResultFuture<'r> {
+) -> Pin<Box<dyn Future<Output = Result<Response<'r>, Status>> + Send + 'r>> {
     Box::pin(async move {
         let result: Result<_, Box<dyn std::error::Error + Send + Sync>> = async {
             let https = HttpsConnector::new();
             let client: Client<_, Body> = Client::builder().build(https);
 
             // Use the token to retrieve the user's GitHub account information.
-            let req = hyper::Request::get("https://people.googleapis.com/v1/people/me?personFields=names")
-                .header(AUTHORIZATION, format!("Bearer {}", token.access_token))
-                .body(Body::empty())?;
+            let req = hyper::Request::get(
+                "https://people.googleapis.com/v1/people/me?personFields=names",
+            )
+            .header(AUTHORIZATION, format!("Bearer {}", token.access_token()))
+            .body(Body::empty())?;
 
             let response = client.request(req).await?;
 
@@ -105,7 +127,13 @@ fn google_callback<'r>(
                 return Err(format!("got non-success status {}", response.status()).into());
             }
 
-            let body = response.into_body().try_concat().await?;
+            let body = response
+                .into_body()
+                .try_fold(Vec::new(), |mut data, chunk| async move {
+                    data.extend_from_slice(&chunk);
+                    Ok(data)
+                })
+                .await?;
 
             let user_info: GoogleUserInfo = serde_json::from_slice(&body)?;
 
@@ -117,7 +145,10 @@ fn google_callback<'r>(
                 .unwrap_or("");
 
             // Set a private cookie with the user's name, and redirect to the home page.
-            let mut cookies = request.guard::<Cookies<'_>>().expect("request cookies");
+            let mut cookies = request
+                .guard::<Cookies<'_>>()
+                .await
+                .expect("request cookies");
             cookies.add_private(
                 Cookie::build("username", real_name.to_string())
                     .same_site(SameSite::Lax)
@@ -125,8 +156,12 @@ fn google_callback<'r>(
             );
 
             Ok(Redirect::to("/"))
-        }.await;
-        result.map_err(response::Debug::from).respond_to(request).await
+        }
+        .await;
+        result
+            .map_err(response::Debug::from)
+            .respond_to(request)
+            .await
     })
 }
 

@@ -1,15 +1,27 @@
+use std::fmt;
+
 use rocket::config::{self, Config, ConfigError, Table, Value};
 
-use crate::Provider;
+use crate::{Provider, StaticProvider};
 
 /// Holds configuration for an OAuth application. This consists of the [Provider]
 /// details, a `client_id` and `client_secret`, and a `redirect_uri`.
-#[derive(Clone, PartialEq, Debug)]
 pub struct OAuthConfig {
-    provider: Provider,
+    provider: Box<dyn Provider>,
     client_id: String,
     client_secret: String,
     redirect_uri: String,
+}
+
+impl fmt::Debug for OAuthConfig {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("OAuthConfig")
+            .field("provider", &(..))
+            .field("client_id", &self.client_id)
+            .field("client_secret", &self.client_secret)
+            .field("redirect_uri", &self.redirect_uri)
+            .finish()
+    }
 }
 
 fn get_config_string(table: &Table, key: &str) -> config::Result<String> {
@@ -27,13 +39,13 @@ fn get_config_string(table: &Table, key: &str) -> config::Result<String> {
 impl OAuthConfig {
     /// Create a new OAuthConfig.
     pub fn new(
-        provider: Provider,
+        provider: impl Provider,
         client_id: String,
         client_secret: String,
         redirect_uri: String,
     ) -> OAuthConfig {
         OAuthConfig {
-            provider,
+            provider: Box::new(provider),
             client_id,
             client_secret,
             redirect_uri,
@@ -47,12 +59,12 @@ impl OAuthConfig {
             .get(name)
             .ok_or_else(|| ConfigError::Missing(name.to_string()))?;
 
-        let table = conf.as_table().ok_or_else(|| {
-            ConfigError::BadType(name.into(), "table", conf.type_str(), None)
-        })?;
+        let table = conf
+            .as_table()
+            .ok_or_else(|| ConfigError::BadType(name.into(), "table", conf.type_str(), None))?;
 
         let provider = match conf.get("provider") {
-            Some(v) => Provider::from_config_value(v),
+            Some(v) => provider_from_config_value(v),
             None => Err(ConfigError::Missing("provider".to_string())),
         }?;
 
@@ -69,8 +81,8 @@ impl OAuthConfig {
     }
 
     /// Gets the [Provider] for this configuration.
-    pub fn provider(&self) -> &Provider {
-        &self.provider
+    pub fn provider(&self) -> &dyn Provider {
+        &*self.provider
     }
 
     /// Gets the client id for this configuration.
@@ -89,29 +101,21 @@ impl OAuthConfig {
     }
 }
 
-impl Provider {
-    fn from_config_value(conf: &Value) -> Result<Provider, ConfigError> {
-        let type_error = || {
-            ConfigError::BadType(
-                "provider".into(),
-                "known provider or table",
-                "",
-                None,
-            )
-        };
+fn provider_from_config_value(conf: &Value) -> Result<StaticProvider, ConfigError> {
+    let type_error =
+        || ConfigError::BadType("provider".into(), "known provider or table", "", None);
 
-        match conf {
-            Value::String(s) => Provider::from_known_name(s).ok_or_else(type_error),
-            Value::Table(t) => {
-                let auth_uri = get_config_string(t, "auth_uri")?.into();
-                let token_uri = get_config_string(t, "token_uri")?.into();
+    match conf {
+        Value::String(s) => StaticProvider::from_known_name(s).ok_or_else(type_error),
+        Value::Table(t) => {
+            let auth_uri = get_config_string(t, "auth_uri")?.into();
+            let token_uri = get_config_string(t, "token_uri")?.into();
 
-                Ok(Provider {
-                    auth_uri,
-                    token_uri,
-                })
-            }
-            _ => Err(type_error()),
+            Ok(StaticProvider {
+                auth_uri,
+                token_uri,
+            })
         }
+        _ => Err(type_error()),
     }
 }

@@ -1,6 +1,6 @@
 [package]
 name = "rocket_oauth2"
-version = "0.1.0-dev"
+version = "0.2.0"
 description = "OAuth2 for Rocket applications"
 documentation = "https://docs.rs/rocket_oauth2/"
 homepage = "https://github.com/jebrosen/rocket_oauth2"
@@ -11,22 +11,25 @@ readme = "README.md"
 edition = "2018"
 
 [workspace]
-members = ["examples/user_info_hyper_rustls"]
+members = ["examples/user_info_hyper_rustls", "examples/user_info_custom_provider"]
 
 [features]
 default = ["hyper_rustls_adapter"]
-hyper_rustls_adapter = ["futures-util-preview", "http", "hyper", "hyper-rustls"]
+hyper_rustls_adapter = ["futures-core", "futures-util", "http", "hyper", "hyper-rustls"]
 
 [dependencies]
-futures-util-preview = { version = "=0.3.0-alpha.18", optional = true }
+base64 = "0.10"
+futures-core = { version = "0.3.0", optional = true }
+futures-util = { version = "0.3.0", optional = true }
 log = "0.4"
 rand = "0.7"
+ring = { version = "0.16", default-features = false }
 rocket = { git = "https://github.com/SergioBenitez/Rocket", branch = "async" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-url = "2.1"
+url = "2.0"
 
 # hyper-rustls adapter
 http = { version = "0.1.14", optional = true }
-hyper = { version = "=0.13.0-alpha.2", optional = true }
-hyper-rustls = { version = "=0.18.0-alpha.1", optional = true }
+hyper = { version = "=0.13", optional = true }
+hyper-rustls = { version = "=0.20.0", optional = true }
