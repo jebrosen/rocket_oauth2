@@ -42,6 +42,10 @@ struct GitHubUserInfo {
     name: String,
 }
 
+// NB: Here we are using the same struct as a type parameter to OAuth2 and
+// TokenResponse as we use for the user's GitHub login details. For
+// `TokenResponse` and `OAuth2` the actual type does not matter; only that they
+// are matched up.
 #[get("/login/github")]
 fn github_login(oauth2: OAuth2<GitHubUserInfo>, mut cookies: Cookies<'_>) -> Redirect {
     oauth2.get_redirect(&mut cookies, &["user:read"]).unwrap()

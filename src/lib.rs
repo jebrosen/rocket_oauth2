@@ -9,8 +9,9 @@
 //!
 //! ## API Stability
 //!
-//! `rocket_oauth2` is still in its early stages and the API is subject
-//! to heavy change in the future.
+//! `rocket_oauth2` is still in its early stages and the API is subject to heavy
+//! change in the future. semver is respsected, but only the latest release will
+//! be actively maintained.
 //!
 //! ## Features
 //!
@@ -24,69 +25,22 @@
 //!
 //! * Grant types other than Authorization Code.
 //!
-//! ## Design
+//! ## Overview
 //!
-//! This crate is designed around 2 traits: [`Callback`] and [`Adapter`]. The
-//! [`Adapter`] trait is implemented by types that can generate authorization
-//! URLs and perform token exchanges. The [`Callback`] trait is implemented by
-//! Rocket applications to perform application-specific actions when a token has
-//! been exchanged successfully.
+//! This crate provides two request guards: [`OAuth2`] and [`TokenResponse`].
+//! `OAuth2` is used to generate redirects to to authentication providers, and
+//! `TokenResponse` is employed on the application's Redirect URI route to
+//! complete the token exchange.
 //!
-//! Generally, a Rocket application will implement [`Callback`] on one type per
-//! service the application will connect to. The [`OAuth2`] type registers
-//! routes and handlers in the application for the OAuth2 redirect and an
-//! optional login handler for convenience.
+//! The [`Adapter`] trait defines how the temporary code from the authorization
+//! server is exchanged for an authentication token. `rocket_oauth2` currently
+//! provides only one `Adapter`, using
+//! [`hyper-sync-rustls`](https://github.com/SergioBenitez/hyper-sync-rustls).
 //!
-//! ## Implementations
-//!
-//! `rocket_oauth2` currently provides only one [`Adapter`] itself:
-//!
-//! * `hyper_sync_rustls`: Uses [`hyper-sync-rustls`](https://github.com/SergioBenitez/hyper-sync-rustls).
-//!
-//! `hyper_sync_rustls` was chosen because it is already a dependency of Rocket.
-//! In general, custom `Adapter`s should only be needed to work around
-//! non-compliant service providers.
+//! If necessary a custom `Adapter` can be used, for example to work around
+//! a noncompliant authorization server.
 //!
 //! ## Usage
-//!
-//! Add `rocket_oauth2` to your `Cargo.toml`:
-//!
-//! ```toml
-//! rocket_oauth2 = { version = "0.0.0" }
-//! ```
-//!
-//! Implement a callback and a login route:
-//!
-//! ```rust
-//! # #![feature(proc_macro_hygiene, decl_macro)]
-//! # #[macro_use] extern crate rocket;
-//! # extern crate rocket_oauth2;
-//! # use rocket::http::{Cookie, Cookies, SameSite};
-//! # use rocket::Request;
-//! # use rocket::response::Redirect;
-//! use rocket_oauth2::{OAuth2, TokenResponse};
-//! use rocket_oauth2::hyper_sync_rustls_adapter::HyperSyncRustlsAdapter;
-//!
-//! struct GitHub;
-//!
-//! #[get("/login/github")]
-//! fn github_login(oauth2: OAuth2<GitHub>, mut cookies: Cookies<'_>) -> Redirect {
-//!     oauth2.get_redirect(&mut cookies, &["user:read"]).unwrap()
-//! }
-//!
-//! #[get("/auth/github")]
-//! fn github_callback(token: TokenResponse<GitHub>, mut cookies: Cookies<'_>)
-//!     -> Result<Redirect, Box<::std::error::Error>>
-//! {
-//!     // Set a private cookie with the access token
-//!     cookies.add_private(
-//!         Cookie::build("token", token.access_token().to_string())
-//!             .same_site(SameSite::Lax)
-//!             .finish()
-//!     );
-//!     Ok(Redirect::to("/"))
-//! }
-//! ```
 //!
 //! Configure your OAuth client settings in `Rocket.toml`:
 //! ```toml
@@ -97,36 +51,52 @@
 //! redirect_uri = "http://localhost:8000/auth/github"
 //! ```
 //!
-//! Create and attach the [`OAuth2`] fairing:
+//! Implement routes for a login URI and a redirect URI. Mount these routes
+//! and attach the [OAuth2 Fairing](OAuth2::fairing()):
 //!
-//! ```rust
+//! ```rust,no_run
 //! # #![feature(proc_macro_hygiene, decl_macro)]
 //! # #[macro_use] extern crate rocket;
 //! # extern crate rocket_oauth2;
 //! # use rocket::http::{Cookie, Cookies, SameSite};
 //! # use rocket::Request;
 //! # use rocket::response::Redirect;
-//! use rocket::fairing::AdHoc;
-//! use rocket_oauth2::{OAuth2, OAuthConfig, TokenResponse};
+//! use rocket_oauth2::{OAuth2, TokenResponse};
 //!
-//! # struct GitHub;
-//! # #[get("/login/github")]
-//! # fn github_login(oauth2: OAuth2<GitHub>, mut cookies: Cookies<'_>) -> Redirect {
-//! #     unimplemented!();
-//! # }
-//! # #[get("/auth/github")]
-//! # fn github_callback(token: TokenResponse<GitHub>, mut cookies: Cookies<'_>)
-//! #     -> Result<Redirect, Box<::std::error::Error>>
-//! # {
-//! #     unimplemented!();
-//! # }
+//! // This struct will only be used as a type-level key. Multiple
+//! // instances of OAuth2 can be used in the same application by
+//! // using different key types.
+//! struct GitHub;
 //!
-//! # fn check_only() {
-//! rocket::ignite()
-//! .mount("/", routes![github_callback, github_login])
-//! .attach(OAuth2::<GitHub>::fairing("github"))
-//! # ;
-//! # }
+//! // This route calls `get_redirect`, which sets up a token request and
+//! // returns a `Redirect` to the authorization endpoint.
+//! #[get("/login/github")]
+//! fn github_login(oauth2: OAuth2<GitHub>, mut cookies: Cookies<'_>) -> Redirect {
+//!     oauth2.get_redirect(&mut cookies, &["user:read"]).unwrap()
+//! }
+//!
+//! // This route, mounted at the application's Redirect URI, uses the
+//! // `TokenResponse` request guard to complete the token exchange and obtain
+//! // the token.
+//! #[get("/auth/github")]
+//! fn github_callback(token: TokenResponse<GitHub>, mut cookies: Cookies<'_>) -> Redirect
+//! {
+//!     // Set a private cookie with the access token
+//!     cookies.add_private(
+//!         Cookie::build("token", token.access_token().to_string())
+//!             .same_site(SameSite::Lax)
+//!             .finish()
+//!     );
+//!     Redirect::to("/")
+//! }
+//!
+//! fn main() {
+//!     rocket::ignite()
+//!         .mount("/", routes![github_callback, github_login])
+//!         // The string "github" here matches [global.oauth2.github] in `Rocket.toml`
+//!         .attach(OAuth2::<GitHub>::fairing("github"))
+//!         .launch();
+//! }
 //! ```
 //!
 //! ### Provider selection
@@ -265,8 +235,8 @@ impl<'a, 'r, K: 'static> FromRequest<'a, 'r> for TokenResponse<K> {
 
     // TODO: Decide if BadRequest is the appropriate error code.
     // TODO: What do providers do if they *reject* the authorization?
-    /// Handle the redirect callback, delegating to the adapter and callback to
-    /// perform the token exchange and application-specific actions.
+    /// Handle the redirect callback, delegating to the Adapter to perform the
+    /// token exchange.
     fn from_request(request: &'a Request<'r>) -> request::Outcome<Self, Self::Error> {
         let oauth2 = request
             .guard::<State<Arc<Shared<K>>>>()
@@ -409,26 +379,14 @@ struct Shared<K> {
     _k: PhantomData<fn() -> TokenResponse<K>>,
 }
 
-/// The `OAuth2` structure implements OAuth in a Rocket application by setting
-/// up OAuth-related route handlers.
-///
-/// ## Redirect handler
-/// `OAuth2` handles the redirect URI. It verifies the `state` token to prevent
-/// CSRF attacks, then instructs the Adapter to perform the token exchange. The
-/// resulting token is passed to the `Callback`.
-///
-/// ## Login handler
-/// `OAuth2` optionally handles a login route, which simply redirects to the
-/// authorization URI generated by the `Adapter`. Whether or not `OAuth2` is
-/// handling a login URI, `get_redirect` can be used to get a `Redirect` to the
-/// OAuth login flow manually.
+/// Utilities for OAuth authentication in Rocket applications.
 pub struct OAuth2<K>(Arc<Shared<K>>);
 
 #[cfg(feature = "hyper_sync_rustls_adapter")]
 impl<K: 'static> OAuth2<K> {
-    /// Returns an OAuth2 fairing. The fairing will place an instance of
-    /// `OAuth2<K>` in managed state and mount a redirect handler. It will
-    /// also mount a login handler if `login` is `Some`.
+    /// Returns an OAuth2 fairing. The fairing will read the configuration in
+    /// `config_name` and register itself in the application so that
+    /// `TokenResponse<K>` can be used.
     pub fn fairing(config_name: &str) -> impl Fairing {
         // Unfortunate allocations, but necessary because on_attach requires 'static
         let config_name = config_name.to_string();
@@ -451,10 +409,7 @@ impl<K: 'static> OAuth2<K> {
 }
 
 impl<K: 'static> OAuth2<K> {
-    /// Returns an OAuth2 fairing with custom configuration. The fairing will
-    /// place an instance of `OAuth2<C>` in managed state and mount a
-    /// redirect handler. It will also mount a login handler if `login` is
-    /// `Some`.
+    /// Returns an OAuth2 fairing with a custom adapter and configuration.
     pub fn custom<A: Adapter>(
         adapter: A,
         config: OAuthConfig,
@@ -472,7 +427,7 @@ impl<K: 'static> OAuth2<K> {
     }
 
     /// Prepare an authentication redirect. This sets a state cookie and returns
-    /// a `Redirect` to the provider's authorization page.
+    /// a `Redirect` to the authorization endpoint.
     pub fn get_redirect(
         &self,
         cookies: &mut Cookies<'_>,

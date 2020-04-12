@@ -79,7 +79,7 @@ impl OAuthConfig {
         ))
     }
 
-    /// Gets the [Provider] for this configuration.
+    /// Gets the [`Provider`] for this configuration.
     pub fn provider(&self) -> &dyn Provider {
         &*self.provider
     }
@@ -122,7 +122,7 @@ fn provider_from_config_value(conf: &Value) -> Result<StaticProvider, ConfigErro
 /// A `Provider` can retrieve authorization and token exchange URIs specific to
 /// an OAuth service provider.
 ///
-/// In most cases, `StaticProvider` should be used instead of implementing
+/// In most cases, [`StaticProvider`] should be used instead of implementing
 /// `Provider` manually.  Implementing `Provider` manually is mainly useful for
 /// dynamically determined providers.
 pub trait Provider: Send + Sync + 'static {
