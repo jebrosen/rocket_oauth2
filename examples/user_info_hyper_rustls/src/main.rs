@@ -165,6 +165,64 @@ fn google_callback<'r>(
     })
 }
 
+/// User information to be retrieved from the Microsoft Graph API.
+#[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct MicrosoftUserInfo {
+    display_name: String,
+}
+
+fn microsoft_callback<'r>(
+    request: &'r Request<'_>,
+    token: TokenResponse,
+) -> Pin<Box<dyn Future<Output = Result<Response<'r>, Status>> + Send + 'r>> {
+    Box::pin(async move {
+        let result: Result<_, Box<dyn std::error::Error + Send + Sync>> = async {
+            let https = HttpsConnector::new();
+            let client: Client<_, Body> = Client::builder().build(https);
+
+            // Use the token to retrieve the user's GitHub account information.
+            let req = hyper::Request::get("https://graph.microsoft.com/v1.0/me")
+                .header(AUTHORIZATION, format!("Bearer {}", token.access_token()))
+                .body(Body::empty())?;
+
+            let response = client.request(req).await?;
+
+            if !response.status().is_success() {
+                return Err(format!("got non-success status {}", response.status()).into());
+            }
+
+            let body = response
+                .into_body()
+                .try_fold(Vec::new(), |mut data, chunk| async move {
+                    data.extend_from_slice(&chunk);
+                    Ok(data)
+                })
+                .await?;
+
+            let user_info: MicrosoftUserInfo = serde_json::from_slice(&body)?;
+
+            // Set a private cookie with the user's name, and redirect to the home page.
+            let mut cookies = request
+                .guard::<Cookies<'_>>()
+                .await
+                .expect("request cookies");
+            cookies.add_private(
+                Cookie::build("username", user_info.display_name)
+                    .same_site(SameSite::Lax)
+                    .finish(),
+            );
+
+            Ok(Redirect::to("/"))
+        }
+        .await;
+        result
+            .map_err(response::Debug::from)
+            .respond_to(request)
+            .await
+    })
+}
+
 #[get("/")]
 fn index(user: User) -> String {
     format!("Hi, {}!", user.username)
@@ -172,7 +230,7 @@ fn index(user: User) -> String {
 
 #[get("/", rank = 2)]
 fn index_anonymous() -> &'static str {
-    "Please login (/login/github or /login/google)"
+    "Please login (/login/github, /login/google or /login/microsoft)"
 }
 
 #[get("/logout")]
@@ -197,6 +255,13 @@ fn main() {
             "google",
             "/auth/google",
             Some(("/login/google", vec!["profile".to_string()])),
+        ))
+        .attach(OAuth2::fairing(
+            HyperRustlsAdapter,
+            microsoft_callback,
+            "microsoft",
+            "/auth/microsoft",
+            Some(("/login/microsoft", vec!["user.read".to_string()])),
         ))
         .launch()
         .expect("server quit unexpectedly")
