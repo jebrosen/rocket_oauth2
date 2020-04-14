@@ -29,8 +29,7 @@ pub fn fairing() -> impl Fairing {
     AdHoc::on_attach("Github OAuth2", |rocket| {
         Ok(rocket
             .mount("/", rocket::routes![github_login, post_install_callback])
-            .attach(OAuth2::<GitHubUserInfo>::fairing("github"))
-        )
+            .attach(OAuth2::<GitHubUserInfo>::fairing("github")))
     })
 }
 
@@ -42,9 +41,10 @@ fn github_login(oauth2: OAuth2<GitHubUserInfo>, mut cookies: Cookies<'_>) -> Red
 /// Callback to handle the authenticated token recieved from GitHub
 /// and store it as a private cookie
 #[rocket::get("/auth/github")]
-fn post_install_callback(token: TokenResponse<GitHubUserInfo>, mut cookies: Cookies<'_>)
-    -> Result<Redirect, Box<dyn (::std::error::Error)>>
-{
+fn post_install_callback(
+    token: TokenResponse<GitHubUserInfo>,
+    mut cookies: Cookies<'_>,
+) -> Result<Redirect, Box<dyn (::std::error::Error)>> {
     let https = HttpsConnector::new(hyper_sync_rustls::TlsClient::new());
     let client = Client::with_connector(https);
 

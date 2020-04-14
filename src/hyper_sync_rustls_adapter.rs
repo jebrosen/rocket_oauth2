@@ -1,21 +1,18 @@
 //! [Adapter] implemented using [`hyper-sync-rustls`](https://github.com/SergioBenitez/hyper-sync-rustls).
 
-use hyper;
-use hyper_sync_rustls;
-
 use std::convert::TryInto;
 use std::io::Read;
 
+use hyper::{
+    header::{Accept, ContentType},
+    net::HttpsConnector,
+    Client,
+};
 use rocket::http::ext::IntoOwned;
 use rocket::http::uri::Absolute;
 use url::form_urlencoded::Serializer as UrlSerializer;
 use url::Url;
 
-use self::hyper::{
-    header::{Accept, ContentType},
-    net::HttpsConnector,
-    Client,
-};
 use super::{Adapter, Error, ErrorKind, OAuthConfig, TokenRequest, TokenResponse};
 
 /// `Adapter` implementation that uses `hyper` and `rustls` to perform the token exchange.

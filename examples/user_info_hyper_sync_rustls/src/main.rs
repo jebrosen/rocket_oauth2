@@ -52,9 +52,10 @@ fn github_login(oauth2: OAuth2<GitHubUserInfo>, mut cookies: Cookies<'_>) -> Red
 }
 
 #[get("/auth/github")]
-fn github_callback(token: TokenResponse<GitHubUserInfo>, mut cookies: Cookies<'_>)
-    -> Result<Redirect, Box<dyn (::std::error::Error)>>
-{
+fn github_callback(
+    token: TokenResponse<GitHubUserInfo>,
+    mut cookies: Cookies<'_>,
+) -> Result<Redirect, Box<dyn (::std::error::Error)>> {
     let https = HttpsConnector::new(hyper_sync_rustls::TlsClient::new());
     let client = Client::with_connector(https);
 
@@ -96,9 +97,10 @@ fn google_login(oauth2: OAuth2<GoogleUserInfo>, mut cookies: Cookies<'_>) -> Red
 }
 
 #[get("/auth/google")]
-fn google_callback(token: TokenResponse<GoogleUserInfo>, mut cookies: Cookies<'_>)
-    -> Result<Redirect, Box<dyn (::std::error::Error)>>
-{
+fn google_callback(
+    token: TokenResponse<GoogleUserInfo>,
+    mut cookies: Cookies<'_>,
+) -> Result<Redirect, Box<dyn (::std::error::Error)>> {
     let https = HttpsConnector::new(hyper_sync_rustls::TlsClient::new());
     let client = Client::with_connector(https);
 
@@ -141,9 +143,10 @@ fn microsoft_login(oauth2: OAuth2<MicrosoftUserInfo>, mut cookies: Cookies<'_>) 
 }
 
 #[get("/auth/microsoft")]
-fn microsoft_callback(token: TokenResponse<MicrosoftUserInfo>, mut cookies: Cookies<'_>)
-    -> Result<Redirect, Box<dyn (::std::error::Error)>>
-{
+fn microsoft_callback(
+    token: TokenResponse<MicrosoftUserInfo>,
+    mut cookies: Cookies<'_>,
+) -> Result<Redirect, Box<dyn (::std::error::Error)>> {
     let https = HttpsConnector::new(hyper_sync_rustls::TlsClient::new());
     let client = Client::with_connector(https);
 
@@ -184,17 +187,20 @@ fn logout(mut cookies: Cookies<'_>) -> Redirect {
 
 fn main() {
     rocket::ignite()
-        .mount("/", routes![
-            index,
-            index_anonymous,
-            logout,
-            github_callback,
-            google_callback,
-            microsoft_callback,
-            github_login,
-            google_login,
-            microsoft_login,
-        ])
+        .mount(
+            "/",
+            routes![
+                index,
+                index_anonymous,
+                logout,
+                github_callback,
+                google_callback,
+                microsoft_callback,
+                github_login,
+                google_login,
+                microsoft_login,
+            ],
+        )
         .attach(OAuth2::<GitHubUserInfo>::fairing("github"))
         .attach(OAuth2::<GoogleUserInfo>::fairing("google"))
         .attach(OAuth2::<MicrosoftUserInfo>::fairing("microsoft"))

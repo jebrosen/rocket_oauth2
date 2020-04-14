@@ -217,7 +217,10 @@ impl std::convert::TryFrom<Value> for TokenResponse<()> {
             }
         }
 
-        Ok(Self { data, _k: PhantomData })
+        Ok(Self {
+            data,
+            _k: PhantomData,
+        })
     }
 }
 
@@ -226,7 +229,10 @@ impl<K> TokenResponse<K> {
     /// This function can be used to "funnel" disparate `TokenResponse`s into a
     /// single concrete type such as `TokenResponse<()>`.
     pub fn cast<L>(self) -> TokenResponse<L> {
-        TokenResponse { data: self.data, _k: PhantomData }
+        TokenResponse {
+            data: self.data,
+            _k: PhantomData,
+        }
     }
 }
 
@@ -246,9 +252,15 @@ impl<'a, 'r, K: 'static> FromRequest<'a, 'r> for TokenResponse<K> {
         // Parse the query data.
         let query = match request.uri().query() {
             Some(q) => q,
-            None => return Outcome::Failure((Status::BadRequest, Error::new_from(
-                ErrorKind::ExchangeFailure, "Missing query string in request"
-            ))),
+            None => {
+                return Outcome::Failure((
+                    Status::BadRequest,
+                    Error::new_from(
+                        ErrorKind::ExchangeFailure,
+                        "Missing query string in request",
+                    ),
+                ))
+            }
         };
 
         #[derive(FromForm)]
@@ -261,9 +273,12 @@ impl<'a, 'r, K: 'static> FromRequest<'a, 'r> for TokenResponse<K> {
 
         let params = match CallbackQuery::from_form(&mut FormItems::from(query), false) {
             Ok(p) => p,
-            Err(e) => return Outcome::Failure((Status::BadRequest, Error::new_from(
-                ErrorKind::ExchangeFailure, format!("{:?}", e)
-            ))),
+            Err(e) => {
+                return Outcome::Failure((
+                    Status::BadRequest,
+                    Error::new_from(ErrorKind::ExchangeFailure, format!("{:?}", e)),
+                ))
+            }
         };
 
         {
@@ -274,9 +289,15 @@ impl<'a, 'r, K: 'static> FromRequest<'a, 'r> for TokenResponse<K> {
                 Some(ref cookie) if cookie.value() == params.state => {
                     cookies.remove(cookie.clone());
                 }
-                _ => return Outcome::Failure((Status::BadRequest, Error::new_from(
-                    ErrorKind::ExchangeFailure, "The state returned from the server did match the stored state."
-                ))),
+                _ => {
+                    return Outcome::Failure((
+                        Status::BadRequest,
+                        Error::new_from(
+                            ErrorKind::ExchangeFailure,
+                            "The state returned from the server did match the stored state.",
+                        ),
+                    ))
+                }
             }
         }
 
@@ -410,10 +431,7 @@ impl<K: 'static> OAuth2<K> {
 
 impl<K: 'static> OAuth2<K> {
     /// Returns an OAuth2 fairing with a custom adapter and configuration.
-    pub fn custom<A: Adapter>(
-        adapter: A,
-        config: OAuthConfig,
-    ) -> impl Fairing {
+    pub fn custom<A: Adapter>(adapter: A, config: OAuthConfig) -> impl Fairing {
         let shared = Shared::<K> {
             adapter: Box::new(adapter),
             config,
@@ -421,9 +439,7 @@ impl<K: 'static> OAuth2<K> {
             _k: PhantomData,
         };
 
-        AdHoc::on_attach("OAuth Mount", |rocket| {
-            Ok(rocket.manage(Arc::new(shared)))
-        })
+        AdHoc::on_attach("OAuth Mount", |rocket| Ok(rocket.manage(Arc::new(shared))))
     }
 
     /// Prepare an authentication redirect. This sets a state cookie and returns
@@ -449,12 +465,14 @@ impl<K: 'static> OAuth2<K> {
     /// Request a new access token given a refresh token. The refresh token
     /// must have been returned by the provider in a previous [`TokenResponse`].
     pub fn refresh(&self, refresh_token: &str) -> Result<TokenResponse<K>, Error> {
-        self.0.adapter.exchange_code(
-            &self.0.config,
-            TokenRequest::RefreshToken(refresh_token.to_string()),
-        ).map(TokenResponse::cast)
+        self.0
+            .adapter
+            .exchange_code(
+                &self.0.config,
+                TokenRequest::RefreshToken(refresh_token.to_string()),
+            )
+            .map(TokenResponse::cast)
     }
-
 }
 
 impl<'a, 'r, K: 'static> FromRequest<'a, 'r> for OAuth2<K> {
@@ -463,9 +481,9 @@ impl<'a, 'r, K: 'static> FromRequest<'a, 'r> for OAuth2<K> {
     fn from_request(request: &'a Request<'r>) -> request::Outcome<Self, Self::Error> {
         Outcome::Success(OAuth2(
             request
-            .guard::<State<Arc<Shared<K>>>>()
-            .expect("OAuth2 fairing was not attached for this key type!")
-            .clone()
+                .guard::<State<Arc<Shared<K>>>>()
+                .expect("OAuth2 fairing was not attached for this key type!")
+                .clone(),
         ))
     }
 }
