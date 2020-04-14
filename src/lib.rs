@@ -131,7 +131,9 @@ mod config;
 mod error;
 
 #[cfg(feature = "hyper_sync_rustls_adapter")]
-pub mod hyper_sync_rustls_adapter;
+mod hyper_sync_rustls_adapter;
+#[cfg(feature = "hyper_sync_rustls_adapter")]
+pub use hyper_sync_rustls_adapter::HyperSyncRustlsAdapter;
 
 pub use self::config::*;
 pub use self::error::*;

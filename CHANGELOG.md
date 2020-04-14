@@ -12,6 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   as regular routes that use the `TokenResponse` request guard.
 - `OAuth2` is no longer placed in managed state. Instead, `OAuth2`
   implements `FromRequest`.
+- `HyperSyncRustlsAdapter` is exported from the crate root instead
+  of from a submodule.
 ### Removed
 - Removed the automatic creation of login routes. Instead,
   `get_redirect()` can be called from a user-defined login route.

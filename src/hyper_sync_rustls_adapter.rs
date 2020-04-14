@@ -1,5 +1,3 @@
-//! [Adapter] implemented using [`hyper-sync-rustls`](https://github.com/SergioBenitez/hyper-sync-rustls).
-
 use std::convert::TryInto;
 use std::io::Read;
 
@@ -15,7 +13,7 @@ use url::Url;
 
 use super::{Adapter, Error, ErrorKind, OAuthConfig, TokenRequest, TokenResponse};
 
-/// `Adapter` implementation that uses `hyper` and `rustls` to perform the token exchange.
+/// The default `Adapter` implementation. Uses `hyper` and `rustls` to perform the token exchange.
 #[derive(Clone, Debug)]
 pub struct HyperSyncRustlsAdapter;
 
