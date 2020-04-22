@@ -6,6 +6,7 @@ publish = false
 edition = "2018"
 
 [dependencies]
+anyhow = "1.0"
 hyper = "0.10"
 hyper-sync-rustls = "=0.3.0-rc.4"
 rocket = "0.4.2"

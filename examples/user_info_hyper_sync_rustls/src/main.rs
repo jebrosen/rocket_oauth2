@@ -2,6 +2,7 @@
 
 use std::io::Read;
 
+use anyhow::{Context, Error};
 use hyper::{
     header::{qitem, Accept, Authorization, Bearer, UserAgent},
     mime::Mime,
@@ -11,7 +12,7 @@ use hyper::{
 use hyper_sync_rustls;
 use rocket::http::{Cookie, Cookies, SameSite};
 use rocket::request::{self, FromRequest, Request};
-use rocket::response::Redirect;
+use rocket::response::{Debug, Redirect};
 use rocket::{get, routes, Outcome};
 use rocket_oauth2::{OAuth2, TokenResponse};
 use serde_json::{self, Value};
@@ -55,7 +56,7 @@ fn github_login(oauth2: OAuth2<GitHubUserInfo>, mut cookies: Cookies<'_>) -> Red
 fn github_callback(
     token: TokenResponse<GitHubUserInfo>,
     mut cookies: Cookies<'_>,
-) -> Result<Redirect, Box<dyn (::std::error::Error)>> {
+) -> Result<Redirect, Debug<Error>> {
     let https = HttpsConnector::new(hyper_sync_rustls::TlsClient::new());
     let client = Client::with_connector(https);
 
@@ -68,13 +69,18 @@ fn github_callback(
         .header(Authorization(format!("token {}", token.access_token())))
         .header(Accept(vec![qitem(mime)]))
         .header(UserAgent("rocket_oauth2 demo application".into()))
-        .send()?;
+        .send()
+        .context("failed to send request to API")?;
 
     if !response.status.is_success() {
-        return Err(format!("got non-success status {}", response.status).into());
+        return Err(anyhow::anyhow!(
+            "got non-success status {}",
+            response.status
+        ))?;
     }
 
-    let user_info: GitHubUserInfo = serde_json::from_reader(response.take(2 * 1024 * 1024))?;
+    let user_info: GitHubUserInfo = serde_json::from_reader(response.take(2 * 1024 * 1024))
+        .context("failed to deserialize response")?;
 
     // Set a private cookie with the user's name, and redirect to the home page.
     cookies.add_private(
@@ -100,7 +106,7 @@ fn google_login(oauth2: OAuth2<GoogleUserInfo>, mut cookies: Cookies<'_>) -> Red
 fn google_callback(
     token: TokenResponse<GoogleUserInfo>,
     mut cookies: Cookies<'_>,
-) -> Result<Redirect, Box<dyn (::std::error::Error)>> {
+) -> Result<Redirect, Debug<Error>> {
     let https = HttpsConnector::new(hyper_sync_rustls::TlsClient::new());
     let client = Client::with_connector(https);
 
@@ -110,9 +116,11 @@ fn google_callback(
         .header(Authorization(Bearer {
             token: token.access_token().to_string(),
         }))
-        .send()?;
+        .send()
+        .context("failed to send request to API")?;
 
-    let user_info: GoogleUserInfo = serde_json::from_reader(response.take(2 * 1024 * 1024))?;
+    let user_info: GoogleUserInfo = serde_json::from_reader(response.take(2 * 1024 * 1024))
+        .context("failed to deserialize response")?;
 
     let real_name = user_info
         .names
@@ -146,7 +154,7 @@ fn microsoft_login(oauth2: OAuth2<MicrosoftUserInfo>, mut cookies: Cookies<'_>) 
 fn microsoft_callback(
     token: TokenResponse<MicrosoftUserInfo>,
     mut cookies: Cookies<'_>,
-) -> Result<Redirect, Box<dyn (::std::error::Error)>> {
+) -> Result<Redirect, Debug<Error>> {
     let https = HttpsConnector::new(hyper_sync_rustls::TlsClient::new());
     let client = Client::with_connector(https);
 
@@ -156,9 +164,11 @@ fn microsoft_callback(
         .header(Authorization(Bearer {
             token: token.access_token().to_string(),
         }))
-        .send()?;
+        .send()
+        .context("failed to send request to API")?;
 
-    let user_info: MicrosoftUserInfo = serde_json::from_reader(response.take(2 * 1024 * 1024))?;
+    let user_info: MicrosoftUserInfo = serde_json::from_reader(response.take(2 * 1024 * 1024))
+        .context("failed to deserialize response")?;
 
     // Set a private cookie with the user's name, and redirect to the home page.
     cookies.add_private(
