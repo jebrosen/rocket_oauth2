@@ -142,7 +142,6 @@ use std::fmt;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-use ring::rand::{SecureRandom, SystemRandom};
 use rocket::fairing::{AdHoc, Fairing};
 use rocket::http::uri::Absolute;
 use rocket::http::{Cookie, Cookies, SameSite, Status};
@@ -155,9 +154,9 @@ const STATE_COOKIE_NAME: &str = "rocket_oauth2_state";
 
 // Random generation of state for defense against CSRF.
 // See RFC 6749 §10.12 for more details.
-fn generate_state(rng: &dyn SecureRandom) -> Result<String, Error> {
+fn generate_state(rng: &mut impl rand::RngCore) -> Result<String, Error> {
     let mut buf = [0; 16]; // 128 bits
-    rng.fill(&mut buf).map_err(|_| {
+    rng.try_fill_bytes(&mut buf).map_err(|_| {
         Error::new_from(
             ErrorKind::Other,
             String::from("Failed to generate random data"),
@@ -398,7 +397,6 @@ pub trait Adapter: Send + Sync + 'static {
 struct Shared<K> {
     adapter: Box<dyn Adapter>,
     config: OAuthConfig,
-    rng: SystemRandom,
     _k: PhantomData<fn() -> TokenResponse<K>>,
 }
 
@@ -437,7 +435,6 @@ impl<K: 'static> OAuth2<K> {
         let shared = Shared::<K> {
             adapter: Box::new(adapter),
             config,
-            rng: SystemRandom::new(),
             _k: PhantomData,
         };
 
@@ -451,7 +448,7 @@ impl<K: 'static> OAuth2<K> {
         cookies: &mut Cookies<'_>,
         scopes: &[&str],
     ) -> Result<Redirect, Error> {
-        let state = generate_state(&self.0.rng)?;
+        let state = generate_state(&mut rand::thread_rng())?;
         let uri = self
             .0
             .adapter
