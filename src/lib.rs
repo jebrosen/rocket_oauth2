@@ -185,6 +185,61 @@ pub struct TokenResponse<K> {
     _k: PhantomData<fn() -> K>,
 }
 
+impl<K> TokenResponse<K> {
+    /// Reinterprets this `TokenResponse` as if it were keyed by `L` instead.
+    /// This function can be used to "funnel" disparate `TokenResponse`s into a
+    /// single concrete type such as `TokenResponse<()>`.
+    pub fn cast<L>(self) -> TokenResponse<L> {
+        TokenResponse {
+            data: self.data,
+            _k: PhantomData,
+        }
+    }
+
+    /// Get the TokenResponse data as a raw JSON [Value]. It is guaranteed to
+    /// be of type Object.
+    pub fn as_value(&self) -> &Value {
+        &self.data
+    }
+
+    /// Get the access token issued by the authorization server.
+    pub fn access_token(&self) -> &str {
+        self.data
+            .get("access_token")
+            .and_then(Value::as_str)
+            .expect("access_token required at construction")
+    }
+
+    /// Get the type of token, described in RFC 6749 §7.1.
+    pub fn token_type(&self) -> &str {
+        self.data
+            .get("token_type")
+            .and_then(Value::as_str)
+            .expect("token_type required at construction")
+    }
+
+    /// Get the lifetime in seconds of the access token, if the authorization server provided one.
+    pub fn expires_in(&self) -> Option<i64> {
+        self.data.get("expires_in").and_then(Value::as_i64)
+    }
+
+    /// Get the refresh token, if the server provided one.
+    pub fn refresh_token(&self) -> Option<&str> {
+        self.data.get("refresh_token").and_then(Value::as_str)
+    }
+
+    /// Get the (space-separated) list of scopes associated with the access
+    /// token.  The authorization server is required to provide this if it
+    /// differs from the requested set of scopes.
+    ///
+    /// If `scope` was not provided by the server as a string, this method will
+    /// return `None`. For those providers, use `.as_value().get("scope")
+    /// instead.
+    pub fn scope(&self) -> Option<&str> {
+        self.data.get("scope").and_then(Value::as_str)
+    }
+}
+
 impl std::convert::TryFrom<Value> for TokenResponse<()> {
     type Error = Error;
 
@@ -222,18 +277,6 @@ impl std::convert::TryFrom<Value> for TokenResponse<()> {
             data,
             _k: PhantomData,
         })
-    }
-}
-
-impl<K> TokenResponse<K> {
-    /// Reinterprets this `TokenResponse` as if it were keyed by `L` instead.
-    /// This function can be used to "funnel" disparate `TokenResponse`s into a
-    /// single concrete type such as `TokenResponse<()>`.
-    pub fn cast<L>(self) -> TokenResponse<L> {
-        TokenResponse {
-            data: self.data,
-            _k: PhantomData,
-        }
     }
 }
 
@@ -326,51 +369,6 @@ impl<'a, 'r, K: 'static> FromRequest<'a, 'r> for TokenResponse<K> {
     }
 }
 
-impl<K> TokenResponse<K> {
-    /// Get the TokenResponse data as a raw JSON [Value]. It is guaranteed to
-    /// be of type Object.
-    pub fn as_value(&self) -> &Value {
-        &self.data
-    }
-
-    /// Get the access token issued by the authorization server.
-    pub fn access_token(&self) -> &str {
-        self.data
-            .get("access_token")
-            .and_then(Value::as_str)
-            .expect("access_token required at construction")
-    }
-
-    /// Get the type of token, described in RFC 6749 §7.1.
-    pub fn token_type(&self) -> &str {
-        self.data
-            .get("token_type")
-            .and_then(Value::as_str)
-            .expect("token_type required at construction")
-    }
-
-    /// Get the lifetime in seconds of the access token, if the authorization server provided one.
-    pub fn expires_in(&self) -> Option<i64> {
-        self.data.get("expires_in").and_then(Value::as_i64)
-    }
-
-    /// Get the refresh token, if the server provided one.
-    pub fn refresh_token(&self) -> Option<&str> {
-        self.data.get("refresh_token").and_then(Value::as_str)
-    }
-
-    /// Get the (space-separated) list of scopes associated with the access
-    /// token.  The authorization server is required to provide this if it
-    /// differs from the requested set of scopes.
-    ///
-    /// If `scope` was not provided by the server as a string, this method will
-    /// return `None`. For those providers, use `.as_value().get("scope")
-    /// instead.
-    pub fn scope(&self) -> Option<&str> {
-        self.data.get("scope").and_then(Value::as_str)
-    }
-}
-
 /// An OAuth2 `Adapater` can be implemented by any type that facilitates the
 /// Authorization Code Grant as described in RFC 6749 §4.1. The implementing
 /// type must be able to generate an authorization URI and perform the token
@@ -403,11 +401,11 @@ struct Shared<K> {
 /// Utilities for OAuth authentication in Rocket applications.
 pub struct OAuth2<K>(Arc<Shared<K>>);
 
-#[cfg(feature = "hyper_sync_rustls_adapter")]
 impl<K: 'static> OAuth2<K> {
     /// Returns an OAuth2 fairing. The fairing will read the configuration in
     /// `config_name` and register itself in the application so that
     /// `TokenResponse<K>` can be used.
+    #[cfg(feature = "hyper_sync_rustls_adapter")]
     pub fn fairing(config_name: &str) -> impl Fairing {
         // Unfortunate allocations, but necessary because on_attach requires 'static
         let config_name = config_name.to_string();
@@ -427,9 +425,7 @@ impl<K: 'static> OAuth2<K> {
             )))
         })
     }
-}
 
-impl<K: 'static> OAuth2<K> {
     /// Returns an OAuth2 fairing with a custom adapter and configuration.
     pub fn custom<A: Adapter>(adapter: A, config: OAuthConfig) -> impl Fairing {
         let shared = Shared::<K> {

@@ -12,29 +12,6 @@ pub struct OAuthConfig {
     redirect_uri: String,
 }
 
-impl fmt::Debug for OAuthConfig {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.debug_struct("OAuthConfig")
-            .field("provider", &(..))
-            .field("client_id", &self.client_id)
-            .field("client_secret", &self.client_secret)
-            .field("redirect_uri", &self.redirect_uri)
-            .finish()
-    }
-}
-
-fn get_config_string(table: &Table, key: &str) -> config::Result<String> {
-    let value = table
-        .get(key)
-        .ok_or_else(|| ConfigError::Missing(key.into()))?;
-
-    let string = value
-        .as_str()
-        .ok_or_else(|| ConfigError::BadType(key.into(), "string", value.type_str(), None))?;
-
-    Ok(string.to_string())
-}
-
 impl OAuthConfig {
     /// Create a new OAuthConfig.
     pub fn new(
@@ -98,6 +75,29 @@ impl OAuthConfig {
     pub fn redirect_uri(&self) -> &str {
         &self.redirect_uri
     }
+}
+
+impl fmt::Debug for OAuthConfig {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("OAuthConfig")
+            .field("provider", &(..))
+            .field("client_id", &self.client_id)
+            .field("client_secret", &self.client_secret)
+            .field("redirect_uri", &self.redirect_uri)
+            .finish()
+    }
+}
+
+fn get_config_string(table: &Table, key: &str) -> config::Result<String> {
+    let value = table
+        .get(key)
+        .ok_or_else(|| ConfigError::Missing(key.into()))?;
+
+    let string = value
+        .as_str()
+        .ok_or_else(|| ConfigError::BadType(key.into(), "string", value.type_str(), None))?;
+
+    Ok(string.to_string())
 }
 
 fn provider_from_config_value(conf: &Value) -> Result<StaticProvider, ConfigError> {
@@ -167,9 +167,7 @@ macro_rules! providers {
                     token_uri: Cow::Borrowed($token),
                 };
             )*
-        }
 
-        impl StaticProvider {
             pub(crate) fn from_known_name(name: &str) -> Option<StaticProvider> {
                 match name {
                     $(
