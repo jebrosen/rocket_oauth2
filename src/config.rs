@@ -4,12 +4,12 @@ use std::fmt;
 use rocket::config::{self, Config, ConfigError, Table, Value};
 
 /// Holds configuration for an OAuth application. This consists of the [Provider]
-/// details, a `client_id` and `client_secret`, and a `redirect_uri`.
+/// details, a `client_id` and `client_secret`, and an optional `redirect_uri`.
 pub struct OAuthConfig {
     provider: Box<dyn Provider>,
     client_id: String,
     client_secret: String,
-    redirect_uri: String,
+    redirect_uri: Option<String>,
 }
 
 impl OAuthConfig {
@@ -23,7 +23,7 @@ impl OAuthConfig {
     /// let provider = StaticProvider::GitHub;
     /// let client_id = "...".to_string();
     /// let client_secret = "...".to_string();
-    /// let redirect_uri = "http://localhost:8000/auth/github".to_string();
+    /// let redirect_uri = Some("http://localhost:8000/auth/github".to_string());
     ///
     /// let config = OAuthConfig::new(provider, client_id, client_secret, redirect_uri);
     /// ```
@@ -31,7 +31,7 @@ impl OAuthConfig {
         provider: impl Provider,
         client_id: String,
         client_secret: String,
-        redirect_uri: String,
+        redirect_uri: Option<String>,
     ) -> OAuthConfig {
         OAuthConfig {
             provider: Box::new(provider),
@@ -88,7 +88,11 @@ impl OAuthConfig {
 
         let client_id = get_config_string(table, "client_id")?;
         let client_secret = get_config_string(table, "client_secret")?;
-        let redirect_uri = get_config_string(table, "redirect_uri")?;
+        let redirect_uri = match get_config_string(table, "redirect_uri") {
+            Ok(s) => Some(s),
+            Err(ConfigError::Missing(_)) => None,
+            Err(e) => return Err(e),
+        };
 
         Ok(OAuthConfig::new(
             provider,
@@ -114,8 +118,8 @@ impl OAuthConfig {
     }
 
     /// Get the redirect URI for this configuration.
-    pub fn redirect_uri(&self) -> &str {
-        &self.redirect_uri
+    pub fn redirect_uri(&self) -> Option<&str> {
+        self.redirect_uri.as_ref().map(String::as_str)
     }
 }
 

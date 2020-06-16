@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 ### Added
 - Log messages help pinpoint which part of the token exchange failed
+- The `redirect_uri` is now optional
 ### Changed
 - Removed the `A` type parameter from `OAuth2::fairing()`.
   To use a custom `Adapter`, use `OAuth2::custom()`.

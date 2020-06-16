@@ -32,8 +32,11 @@ impl Adapter for HyperSyncRustlsAdapter {
         url.query_pairs_mut()
             .append_pair("response_type", "code")
             .append_pair("client_id", config.client_id())
-            .append_pair("redirect_uri", config.redirect_uri())
             .append_pair("state", state);
+
+        if let Some(redirect_uri) = config.redirect_uri() {
+            url.query_pairs_mut().append_pair("redirect_uri", redirect_uri);
+        }
 
         if !scopes.is_empty() {
             url.query_pairs_mut()
@@ -58,7 +61,9 @@ impl Adapter for HyperSyncRustlsAdapter {
             TokenRequest::AuthorizationCode(code) => {
                 ser.append_pair("grant_type", "authorization_code");
                 ser.append_pair("code", &code);
-                ser.append_pair("redirect_uri", config.redirect_uri());
+                if let Some(redirect_uri) = config.redirect_uri() {
+                    ser.append_pair("redirect_uri", redirect_uri);
+                }
             }
             TokenRequest::RefreshToken(token) => {
                 ser.append_pair("grant_type", "refresh_token");
