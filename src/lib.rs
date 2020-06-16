@@ -142,6 +142,7 @@ use std::fmt;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
+use log::warn;
 use rocket::fairing::{AdHoc, Fairing};
 use rocket::http::uri::Absolute;
 use rocket::http::{Cookie, Cookies, SameSite, Status};
@@ -318,6 +319,7 @@ impl<'a, 'r, K: 'static> FromRequest<'a, 'r> for TokenResponse<K> {
         let params = match CallbackQuery::from_form(&mut FormItems::from(query), false) {
             Ok(p) => p,
             Err(e) => {
+                warn!("Failed to parse OAuth2 query string: {:?}", e);
                 return Outcome::Failure((
                     Status::BadRequest,
                     Error::new_from(ErrorKind::ExchangeFailure, format!("{:?}", e)),
@@ -334,11 +336,12 @@ impl<'a, 'r, K: 'static> FromRequest<'a, 'r> for TokenResponse<K> {
                     cookies.remove(cookie.clone());
                 }
                 _ => {
+                    warn!("The OAuth2 state returned from the server did not match the stored state.");
                     return Outcome::Failure((
                         Status::BadRequest,
                         Error::new_from(
                             ErrorKind::ExchangeFailure,
-                            "The state returned from the server did match the stored state.",
+                            "The OAuth2 state returned from the server did match the stored state.",
                         ),
                     ))
                 }
@@ -364,7 +367,10 @@ impl<'a, 'r, K: 'static> FromRequest<'a, 'r> for TokenResponse<K> {
                 }
                 Outcome::Success(token.cast())
             }
-            Err(e) => Outcome::Failure((Status::BadRequest, e)),
+            Err(e) => {
+                warn!("OAuth2 token exchange failed: {}", e);
+                Outcome::Failure((Status::BadRequest, e))
+            }
         }
     }
 }
