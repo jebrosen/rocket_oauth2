@@ -13,7 +13,20 @@ pub struct OAuthConfig {
 }
 
 impl OAuthConfig {
-    /// Create a new OAuthConfig.
+    /// Construct an OAuthConfig specifying all parameters manually.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use rocket_oauth2::{OAuthConfig, StaticProvider};
+    ///
+    /// let provider = StaticProvider::GitHub;
+    /// let client_id = "...".to_string();
+    /// let client_secret = "...".to_string();
+    /// let redirect_uri = "http://localhost:8000/auth/github".to_string();
+    ///
+    /// let config = OAuthConfig::new(provider, client_id, client_secret, redirect_uri);
+    /// ```
     pub fn new(
         provider: impl Provider,
         client_id: String,
@@ -28,7 +41,36 @@ impl OAuthConfig {
         }
     }
 
-    /// Constructs a OAuthConfig from Rocket configuration
+    /// Construct an OAuthConfig from Rocket configuration.
+    ///
+    /// # Example
+    ///
+    /// ## Rocket.toml
+    ///
+    /// ```toml
+    /// [global.oauth.github]
+    /// provider = "GitHub"
+    /// client_id = "..."
+    /// client_secret = "..."
+    /// redirect_uri = "http://localhost:8000/auth/github"
+    /// ```
+    ///
+    /// ## main.rs
+    /// ```rust,no_run
+    /// use rocket::fairing::AdHoc;
+    /// use rocket_oauth2::{HyperSyncRustlsAdapter, OAuth2, OAuthConfig};
+    ///
+    /// struct GitHub;
+    ///
+    /// fn main() {
+    ///     rocket::ignite()
+    ///         .attach(AdHoc::on_attach("OAuth Config", |rocket| {
+    ///             let config = OAuthConfig::from_config(rocket.config(), "github").unwrap();
+    ///             Ok(rocket.attach(OAuth2::<GitHub>::custom(HyperSyncRustlsAdapter, config)))
+    ///         }))
+    ///         .launch();
+    /// }
+    /// ```
     pub fn from_config(config: &Config, name: &str) -> config::Result<OAuthConfig> {
         let oauth = config.get_table("oauth")?;
         let conf = oauth
@@ -56,22 +98,22 @@ impl OAuthConfig {
         ))
     }
 
-    /// Gets the [`Provider`] for this configuration.
+    /// Get the [`Provider`] for this configuration.
     pub fn provider(&self) -> &dyn Provider {
         &*self.provider
     }
 
-    /// Gets the client id for this configuration.
+    /// Get the client id for this configuration.
     pub fn client_id(&self) -> &str {
         &self.client_id
     }
 
-    /// Gets the client secret for this configuration.
+    /// Get the client secret for this configuration.
     pub fn client_secret(&self) -> &str {
         &self.client_secret
     }
 
-    /// Gets the redirect URI for this configuration.
+    /// Get the redirect URI for this configuration.
     pub fn redirect_uri(&self) -> &str {
         &self.redirect_uri
     }
@@ -127,8 +169,24 @@ fn provider_from_config_value(conf: &Value) -> Result<StaticProvider, ConfigErro
 /// change during runtime.
 pub trait Provider: Send + Sync + 'static {
     /// Returns the authorization URI associated with the service provider.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use rocket_oauth2::{Provider, StaticProvider};
+    ///
+    /// assert_eq!(StaticProvider::GitHub.auth_uri(), "https://github.com/login/oauth/authorize");
+    /// ```
     fn auth_uri(&self) -> Cow<'_, str>;
     /// Returns the token exchange URI associated with the service provider.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use rocket_oauth2::{Provider, StaticProvider};
+    ///
+    /// assert_eq!(StaticProvider::GitHub.token_uri(), "https://github.com/login/oauth/access_token");
+    /// ```
     fn token_uri(&self) -> Cow<'_, str>;
 }
 
@@ -137,6 +195,17 @@ pub trait Provider: Send + Sync + 'static {
 ///
 /// If the URIs will change during runtime, implement [`Provider`] for your own
 /// type instead.
+///
+/// # Example
+///
+/// ```rust
+/// use rocket_oauth2::StaticProvider;
+///
+/// let provider = StaticProvider {
+///     auth_uri: "https://example.com/oauth2/authorize".into(),
+///     token_uri: "https://example.com/oauth2/token".into(),
+/// };
+/// ```
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub struct StaticProvider {
     /// The authorization URI associated with the service provider.

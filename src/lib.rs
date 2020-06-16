@@ -187,9 +187,28 @@ pub struct TokenResponse<K> {
 }
 
 impl<K> TokenResponse<K> {
-    /// Reinterprets this `TokenResponse` as if it were keyed by `L` instead.
-    /// This function can be used to "funnel" disparate `TokenResponse`s into a
-    /// single concrete type such as `TokenResponse<()>`.
+    /// Reinterpret this `TokenResponse` as if it were keyed by `L` instead.
+    /// This function can be used to treat disparate `TokenResponse`s as a
+    /// single concrete type such as `TokenResponse<()>` to avoid an explosion
+    /// of generic bounds.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # #![feature(decl_macro)]
+    /// use rocket_oauth2::TokenResponse;
+    ///
+    /// struct GitHub;
+    ///
+    /// fn use_nongeneric_token(token: TokenResponse<()>) {
+    ///     // ...
+    /// }
+    ///
+    /// #[rocket::get("/login/github")]
+    /// fn login_github(token: TokenResponse<GitHub>) {
+    ///     use_nongeneric_token(token.cast());
+    /// }
+    /// ```
     pub fn cast<L>(self) -> TokenResponse<L> {
         TokenResponse {
             data: self.data,
@@ -199,11 +218,39 @@ impl<K> TokenResponse<K> {
 
     /// Get the TokenResponse data as a raw JSON [Value]. It is guaranteed to
     /// be of type Object.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # #![feature(decl_macro)]
+    /// use rocket_oauth2::TokenResponse;
+    ///
+    /// struct MyProvider;
+    ///
+    /// #[rocket::get("/login/github")]
+    /// fn login_github(token: TokenResponse<MyProvider>) {
+    ///     let custom_data = token.as_value().get("custom_data").unwrap().as_str();
+    /// }
+    /// ```
     pub fn as_value(&self) -> &Value {
         &self.data
     }
 
     /// Get the access token issued by the authorization server.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # #![feature(decl_macro)]
+    /// use rocket_oauth2::TokenResponse;
+    ///
+    /// struct GitHub;
+    ///
+    /// #[rocket::get("/login/github")]
+    /// fn login_github(token: TokenResponse<GitHub>) {
+    ///     let access_token = token.access_token();
+    /// }
+    /// ```
     pub fn access_token(&self) -> &str {
         self.data
             .get("access_token")
@@ -212,6 +259,20 @@ impl<K> TokenResponse<K> {
     }
 
     /// Get the type of token, described in RFC 6749 §7.1.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # #![feature(decl_macro)]
+    /// use rocket_oauth2::TokenResponse;
+    ///
+    /// struct GitHub;
+    ///
+    /// #[rocket::get("/login/github")]
+    /// fn login_github(token: TokenResponse<GitHub>) {
+    ///     let token_type = token.token_type();
+    /// }
+    /// ```
     pub fn token_type(&self) -> &str {
         self.data
             .get("token_type")
@@ -220,11 +281,43 @@ impl<K> TokenResponse<K> {
     }
 
     /// Get the lifetime in seconds of the access token, if the authorization server provided one.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # #![feature(decl_macro)]
+    /// use rocket_oauth2::TokenResponse;
+    ///
+    /// struct GitHub;
+    ///
+    /// #[rocket::get("/login/github")]
+    /// fn login_github(token: TokenResponse<GitHub>) {
+    ///     if let Some(expires_in) = token.expires_in() {
+    ///         println!("Token expires in {} seconds", expires_in);
+    ///     }
+    /// }
+    /// ```
     pub fn expires_in(&self) -> Option<i64> {
         self.data.get("expires_in").and_then(Value::as_i64)
     }
 
     /// Get the refresh token, if the server provided one.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # #![feature(decl_macro)]
+    /// use rocket_oauth2::TokenResponse;
+    ///
+    /// struct GitHub;
+    ///
+    /// #[rocket::get("/login/github")]
+    /// fn login_github(token: TokenResponse<GitHub>) {
+    ///     if let Some(refresh_token) = token.refresh_token() {
+    ///         println!("Got a refresh token! '{}'", refresh_token);
+    ///     }
+    /// }
+    /// ```
     pub fn refresh_token(&self) -> Option<&str> {
         self.data.get("refresh_token").and_then(Value::as_str)
     }
@@ -236,6 +329,22 @@ impl<K> TokenResponse<K> {
     /// If `scope` was not provided by the server as a string, this method will
     /// return `None`. For those providers, use `.as_value().get("scope")
     /// instead.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # #![feature(decl_macro)]
+    /// use rocket_oauth2::TokenResponse;
+    ///
+    /// struct GitHub;
+    ///
+    /// #[rocket::get("/login/github")]
+    /// fn login_github(token: TokenResponse<GitHub>) {
+    ///     if let Some(scope) = token.scope() {
+    ///         println!("Token scope: '{}'", scope);
+    ///     }
+    /// }
+    /// ```
     pub fn scope(&self) -> Option<&str> {
         self.data.get("scope").and_then(Value::as_str)
     }
@@ -408,9 +517,23 @@ struct Shared<K> {
 pub struct OAuth2<K>(Arc<Shared<K>>);
 
 impl<K: 'static> OAuth2<K> {
-    /// Returns an OAuth2 fairing. The fairing will read the configuration in
+    /// Create an OAuth2 fairing. The fairing will read the configuration in
     /// `config_name` and register itself in the application so that
     /// `TokenResponse<K>` can be used.
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// use rocket::fairing::AdHoc;
+    /// use rocket_oauth2::{HyperSyncRustlsAdapter, OAuth2, OAuthConfig};
+    ///
+    /// struct GitHub;
+    ///
+    /// fn main() {
+    ///     rocket::ignite()
+    ///         .attach(OAuth2::<GitHub>::fairing("github"))
+    ///         .launch();
+    /// }
     #[cfg(feature = "hyper_sync_rustls_adapter")]
     pub fn fairing(config_name: &str) -> impl Fairing {
         // Unfortunate allocations, but necessary because on_attach requires 'static
@@ -432,7 +555,32 @@ impl<K: 'static> OAuth2<K> {
         })
     }
 
-    /// Returns an OAuth2 fairing with a custom adapter and configuration.
+    /// Create an OAuth2 fairing with a custom adapter and configuration.
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// use rocket::fairing::AdHoc;
+    /// use rocket_oauth2::{HyperSyncRustlsAdapter, OAuth2, OAuthConfig, StaticProvider};
+    ///
+    /// struct MyProvider;
+    ///
+    /// fn main() {
+    ///     rocket::ignite()
+    ///         .attach(AdHoc::on_attach("OAuth Config", |rocket| {
+    ///             let config = OAuthConfig::new(
+    ///                 StaticProvider {
+    ///                     auth_uri: "auth uri".into(),
+    ///                     token_uri: "token uri".into(),
+    ///                 },
+    ///                 "client id".to_string(),
+    ///                 "client secret".to_string(),
+    ///                 "http://localhost:8000/auth".to_string(),
+    ///             );
+    ///             Ok(rocket.attach(OAuth2::<MyProvider>::custom(HyperSyncRustlsAdapter, config)))
+    ///         }))
+    ///         .launch();
+    /// }
     pub fn custom<A: Adapter>(adapter: A, config: OAuthConfig) -> impl Fairing {
         let shared = Shared::<K> {
             adapter: Box::new(adapter),
@@ -445,6 +593,22 @@ impl<K: 'static> OAuth2<K> {
 
     /// Prepare an authentication redirect. This sets a state cookie and returns
     /// a `Redirect` to the authorization endpoint.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # #![feature(decl_macro)]
+    /// use rocket::http::Cookies;
+    /// use rocket::response::Redirect;
+    /// use rocket_oauth2::OAuth2;
+    ///
+    /// struct GitHub;
+    ///
+    /// #[rocket::get("/login/github")]
+    /// fn github_login(oauth2: OAuth2<GitHub>, mut cookies: Cookies<'_>) -> Redirect {
+    ///     oauth2.get_redirect(&mut cookies, &["user:read"]).unwrap()
+    /// }
+    /// ```
     pub fn get_redirect(
         &self,
         cookies: &mut Cookies<'_>,
@@ -465,6 +629,22 @@ impl<K: 'static> OAuth2<K> {
 
     /// Request a new access token given a refresh token. The refresh token
     /// must have been returned by the provider in a previous [`TokenResponse`].
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # #![feature(decl_macro)]
+    /// use rocket_oauth2::OAuth2;
+    ///
+    /// struct GitHub;
+    ///
+    /// #[rocket::get("/")]
+    /// fn index(oauth2: OAuth2<GitHub>) {
+    ///     // get previously stored refresh_token
+    ///     # let refresh_token = "";
+    ///     oauth2.refresh(refresh_token).unwrap();
+    /// }
+    /// ```
     pub fn refresh(&self, refresh_token: &str) -> Result<TokenResponse<K>, Error> {
         self.0
             .adapter

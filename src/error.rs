@@ -44,7 +44,7 @@ impl Error {
         }
     }
 
-    /// Returns the kind of error that occurred.
+    /// Get the kind of error that occurred.
     pub fn kind(&self) -> &ErrorKind {
         &self.kind
     }
