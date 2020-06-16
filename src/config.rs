@@ -123,8 +123,8 @@ fn provider_from_config_value(conf: &Value) -> Result<StaticProvider, ConfigErro
 /// an OAuth service provider.
 ///
 /// In most cases, [`StaticProvider`] should be used instead of implementing
-/// `Provider` manually.  Implementing `Provider` manually is mainly useful for
-/// dynamically determined providers.
+/// `Provider` manually. `Provider` should be implemented if the URIs will
+/// change during runtime.
 pub trait Provider: Send + Sync + 'static {
     /// Returns the authorization URI associated with the service provider.
     fn auth_uri(&self) -> Cow<'_, str>;
@@ -132,12 +132,11 @@ pub trait Provider: Send + Sync + 'static {
     fn token_uri(&self) -> Cow<'_, str>;
 }
 
-/// A `StaticProvider` contains authorization and token exchange URIs specific
-/// to an OAuth service provider, that will not change after they are
-/// determined.
+/// A `StaticProvider` contains authorization and token exchange URIs known in
+/// advance, either at compile-time or early in initialization.
 ///
-/// If the service provider's URIs might change at runtime, implement
-/// [`Provider`] for your own type instead.
+/// If the URIs will change during runtime, implement [`Provider`] for your own
+/// type instead.
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 pub struct StaticProvider {
     /// The authorization URI associated with the service provider.
