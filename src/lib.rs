@@ -78,6 +78,10 @@
 //! // This route, mounted at the application's Redirect URI, uses the
 //! // `TokenResponse` request guard to complete the token exchange and obtain
 //! // the token.
+//! //
+//! // The order is important here! If Cookies is positioned before
+//! // TokenResponse, TokenResponse will be unable to verify the token exchange
+//! // and return a failure.
 //! #[get("/auth/github")]
 //! fn github_callback(token: TokenResponse<GitHub>, mut cookies: Cookies<'_>) -> Redirect
 //! {
@@ -179,7 +183,48 @@ pub enum TokenRequest {
 /// in RFC 6749 §5.1.
 ///
 /// `TokenResponse<K>` implements `FromRequest`, and is used in the callback
-/// route to complete the token exchange.
+/// route to complete the token exchange. Since `TokenResponse` accesses
+/// [`Cookies`], it must be positioned *before* `Cookies` in routes.
+/// For more information, see [the rocket.rs guide].
+///
+/// # Example
+///
+/// ```rust
+/// # #![feature(proc_macro_hygiene, decl_macro)]
+/// # #[macro_use] extern crate rocket;
+/// # use rocket::http::Cookies;
+/// # use rocket::response::Redirect;
+/// # struct Auth;
+/// use rocket_oauth2::TokenResponse;
+///
+/// // Bad! This will fail at runtime:
+/// // "Error: Multiple `Cookies` instances are active at once."
+/// #[get("/auth")]
+/// fn auth_callback(mut cookies: Cookies<'_>, token: TokenResponse<Auth>) -> Redirect {
+///      // ...
+/// #    Redirect::to("/")
+/// }
+/// ```
+///
+/// ```rust
+/// # #![feature(proc_macro_hygiene, decl_macro)]
+/// # #[macro_use] extern crate rocket;
+/// # use rocket::http::Cookies;
+/// # use rocket::response::Redirect;
+/// # struct Auth;
+/// use rocket_oauth2::TokenResponse;
+///
+/// // Good. TokenResponse will access and then release Cookies,
+/// // and then both TokenResponse and Cookies will be given to the route.
+/// #[get("/auth")]
+/// fn auth_callback(token: TokenResponse<Auth>, mut cookies: Cookies<'_>) -> Redirect {
+///      // ...
+/// #    Redirect::to("/")
+/// }
+/// ```
+///
+/// [`Cookies`]: https://api.rocket.rs/v0.4/rocket/http/enum.Cookies.html
+/// [the rocket.rs guide]: https://rocket.rs/v0.4/guide/requests/#one-at-a-time
 #[derive(Clone, PartialEq, Debug)]
 pub struct TokenResponse<K> {
     data: Value,
