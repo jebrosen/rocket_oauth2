@@ -142,7 +142,7 @@ use std::fmt;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-use log::warn;
+use log::{error, warn};
 use rocket::fairing::{AdHoc, Fairing};
 use rocket::http::uri::Absolute;
 use rocket::http::{Cookie, Cookies, SameSite, Status};
@@ -444,8 +444,14 @@ impl<'a, 'r, K: 'static> FromRequest<'a, 'r> for TokenResponse<K> {
                 Some(ref cookie) if cookie.value() == params.state => {
                     cookies.remove(cookie.clone());
                 }
-                _ => {
-                    warn!("The OAuth2 state returned from the server did not match the stored state.");
+                other => {
+                    if other.is_some() {
+                        warn!("The OAuth2 state returned from the server did not match the stored state.");
+                    } else {
+                        error!("The OAuth2 state cookie was missing. It may have been blocked by the client, \
+                                or perhaps a `Cookies` guard is already active?");
+                    }
+
                     return Outcome::Failure((
                         Status::BadRequest,
                         Error::new_from(
