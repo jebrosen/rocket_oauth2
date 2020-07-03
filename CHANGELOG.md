@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.3.0 - 2020-07-03
+### Added
+- Documentation that TokenResponse guard must come before Cookies
+### Changed
+- More specific log message when the state cookie is missing or
+  inaccessible
+- Provider names are now case-insensitive, matching the documentation
+
 ## 0.3.0-rc.1 - 2020-06-15
 ### Added
 - Log messages help pinpoint which part of the token exchange failed
