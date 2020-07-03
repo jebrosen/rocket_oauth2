@@ -241,12 +241,12 @@ macro_rules! providers {
             )*
 
             pub(crate) fn from_known_name(name: &str) -> Option<StaticProvider> {
-                match name {
-                    $(
-                        stringify!($name) => Some(StaticProvider::$name),
-                    )*
-                    _ => None,
-                }
+                $(
+                    if name.eq_ignore_ascii_case(stringify!($name)) {
+                        return Some(StaticProvider::$name);
+                    }
+                )*
+                None
             }
         }
     };
