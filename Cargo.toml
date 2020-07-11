@@ -18,7 +18,7 @@ default = ["hyper_sync_rustls_adapter"]
 hyper_sync_rustls_adapter = ["hyper", "hyper-sync-rustls"]
 
 [dependencies]
-base64 = "0.10"
+base64 = "0.12"
 log = "0.4.4"
 rand = { version = "0.7", default-features = false, features = ["std"] }
 rocket = { version = "0.4", default-features = false, features = ["private-cookies"] }
