@@ -72,6 +72,10 @@
 //! // returns a `Redirect` to the authorization endpoint.
 //! #[get("/login/github")]
 //! fn github_login(oauth2: OAuth2<GitHub>, mut cookies: Cookies<'_>) -> Redirect {
+//!     // We want the "user:read" scope. For some providers, scopes may be
+//!     // pre-selected or restricted during application registration. We could
+//!     // use `&[]` instead to not request any scopes, but usually scopes
+//!     // should be requested during registation, in the redirect, or both.
 //!     oauth2.get_redirect(&mut cookies, &["user:read"]).unwrap()
 //! }
 //!
