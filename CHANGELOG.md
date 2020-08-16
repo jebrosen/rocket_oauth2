@@ -4,6 +4,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+### Changed
+- Use HTTP basic authentication by default to pass `client_id` and
+  `client_secret` to the authorization server, instead of placing them in the
+  request body.
+
+### Migration Notes
+
+Previous versions of this library sent the `client_id` and `client_secret` in
+the request body, which is an optional extension supported by many authorization
+servers. The default is now to use HTTP Basic Authentication, which [servers
+must support]. In the case of a server that *only* supports authentication
+parameters in the request body, this functionality can be disabled.
+
+* For servers that support HTTP Basic Authentication, use `OAuth2::fairing()` or
+  `OAuth2::custom()` with `HyperSyncRustlsAdapter::default()`.
+* For servers that **do not** support HTTP Basic Authentication, use
+  `OAuth2::custom()` with `HyperSyncRustlsAdapter::default().basic_auth(false)`.
+* Only `HyperSyncRustlsAdapter` is affected by this change; custom `Adapter`
+  types are not affected.
+
+[servers must support]: https://tools.ietf.org/html/rfc6749#section-2.3.1
+
 ## 0.3.1 - 2020-07-19
 ### Added
 - Support for 'Wikimedia' as a known provider.

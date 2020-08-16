@@ -604,7 +604,7 @@ impl<K: 'static> OAuth2<K> {
             };
 
             Ok(rocket.attach(Self::custom(
-                hyper_sync_rustls_adapter::HyperSyncRustlsAdapter,
+                hyper_sync_rustls_adapter::HyperSyncRustlsAdapter::default(),
                 config,
             )))
         })
@@ -632,7 +632,7 @@ impl<K: 'static> OAuth2<K> {
     ///                 "client secret".to_string(),
     ///                 Some("http://localhost:8000/auth".to_string()),
     ///             );
-    ///             Ok(rocket.attach(OAuth2::<MyProvider>::custom(HyperSyncRustlsAdapter, config)))
+    ///             Ok(rocket.attach(OAuth2::<MyProvider>::custom(HyperSyncRustlsAdapter::default(), config)))
     ///         }))
     ///         .launch();
     /// }

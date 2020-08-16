@@ -2,7 +2,7 @@ use std::convert::TryInto;
 use std::io::Read;
 
 use hyper::{
-    header::{Accept, ContentType},
+    header::{Accept, Authorization, Basic, ContentType},
     net::HttpsConnector,
     Client,
 };
@@ -14,8 +14,59 @@ use url::Url;
 use super::{Adapter, Error, ErrorKind, OAuthConfig, TokenRequest, TokenResponse};
 
 /// The default `Adapter` implementation. Uses `hyper` and `rustls` to perform the token exchange.
+///
+/// By defualt, this adapter will use HTTP Basic Authentication. If this is
+/// not supported by your authorization server, the [`basic_auth`] method
+/// can be used to change this behavior.
+///
+/// [`basic_auth`]: HyperSyncRustlsAdapter::basic_auth()
 #[derive(Clone, Debug)]
-pub struct HyperSyncRustlsAdapter;
+pub struct HyperSyncRustlsAdapter {
+    use_basic_auth: bool,
+}
+
+impl Default for HyperSyncRustlsAdapter {
+    fn default() -> Self {
+        Self {
+            use_basic_auth: true,
+        }
+    }
+}
+
+impl HyperSyncRustlsAdapter {
+    /// Sets whether or not this adapter will use HTTP Basic Authentication.
+    /// Although servers are required to support it (RFC 6749 §2.3.1), not all
+    /// do.
+    ///
+    /// If this is set to `false`, the `client_id` and `client_secret` will be
+    /// sent as part of the request body instead of an `Authorization` header.
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// use rocket::fairing::AdHoc;
+    /// use rocket_oauth2::{HyperSyncRustlsAdapter, OAuth2, OAuthConfig, StaticProvider};
+    ///
+    /// struct MyProvider;
+    ///
+    /// fn main() {
+    ///     rocket::ignite()
+    ///         .attach(AdHoc::on_attach("OAuth Config", |rocket| {
+    ///             let config = OAuthConfig::from_config(rocket.config(), "my_provider").unwrap();
+    ///             Ok(rocket.attach(OAuth2::<MyProvider>::custom(
+    ///                 HyperSyncRustlsAdapter::default().basic_auth(false), config)
+    ///             ))
+    ///         }))
+    ///         .launch();
+    /// }
+    /// ```
+    pub fn basic_auth(self, use_basic_auth: bool) -> Self {
+        Self {
+            use_basic_auth,
+            ..self
+        }
+    }
+}
 
 impl Adapter for HyperSyncRustlsAdapter {
     fn authorization_uri(
@@ -56,6 +107,11 @@ impl Adapter for HyperSyncRustlsAdapter {
         let https = HttpsConnector::new(hyper_sync_rustls::TlsClient::new());
         let client = Client::with_connector(https);
 
+        let mut request = client
+            .post(config.provider().token_uri().as_ref())
+            .header(Accept::json())
+            .header(ContentType::form_url_encoded());
+
         let mut ser = UrlSerializer::new(String::new());
         match token {
             TokenRequest::AuthorizationCode(code) => {
@@ -70,16 +126,21 @@ impl Adapter for HyperSyncRustlsAdapter {
                 ser.append_pair("refresh_token", &token);
             }
         }
-        ser.append_pair("client_id", config.client_id());
-        ser.append_pair("client_secret", config.client_secret());
+
+        if self.use_basic_auth {
+            request = request
+                .header(Authorization(Basic {
+                    username: config.client_id().to_string(),
+                    password: Some(config.client_secret().to_string()),
+                }));
+        } else {
+            ser.append_pair("client_id", config.client_id());
+            ser.append_pair("client_secret", config.client_secret());
+        }
 
         let req_str = ser.finish();
 
-        let request = client
-            .post(config.provider().token_uri().as_ref())
-            .header(Accept::json())
-            .header(ContentType::form_url_encoded())
-            .body(&req_str);
+        let request = request.body(&req_str);
 
         let response = request
             .send()
