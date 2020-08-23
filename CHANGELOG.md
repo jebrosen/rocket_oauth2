@@ -5,6 +5,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased
+### Added
+- `get_redirect_extras` method, which accepts "extra" query parameters to use in
+  the authentication request.
 ### Changed
 - Use HTTP basic authentication by default to pass `client_id` and
   `client_secret` to the authorization server, instead of placing them in the

@@ -544,13 +544,15 @@ impl<'a, 'r, K: 'static> FromRequest<'a, 'r> for TokenResponse<K> {
 /// type must be able to generate an authorization URI and perform the token
 /// exchange.
 pub trait Adapter: Send + Sync + 'static {
-    /// Generate an authorization URI as described by RFC 6749 §4.1.1
-    /// given configuration, state, and scopes.
+    /// Generate an authorization URI as described by RFC 6749 §4.1.1 given
+    /// configuration, state, and scopes. Implementations *should* include
+    /// `extra_params` in the URI as additional query parameters.
     fn authorization_uri(
         &self,
         config: &OAuthConfig,
         state: &str,
         scopes: &[&str],
+        extra_params: &[(&str, &str)],
     ) -> Result<Absolute<'static>, Error>;
 
     /// Perform the token exchange in accordance with RFC 6749 §4.1.3 given the
@@ -669,11 +671,42 @@ impl<K: 'static> OAuth2<K> {
         cookies: &mut Cookies<'_>,
         scopes: &[&str],
     ) -> Result<Redirect, Error> {
+        self.get_redirect_extras(cookies, scopes, &[])
+    }
+
+    /// Prepare an authentication redirect. This sets a state cookie and returns
+    /// a `Redirect` to the authorization endpoint. Unlike [`get_redirect`],
+    /// this method accepts additional query parameters in `extras`; this can be
+    /// used to provide or request additional information to or from providers.
+    ///
+    /// [`get_redirect`]: Self::get_redirect
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// # #![feature(decl_macro)]
+    /// use rocket::http::Cookies;
+    /// use rocket::response::Redirect;
+    /// use rocket_oauth2::OAuth2;
+    ///
+    /// struct Reddit;
+    ///
+    /// #[rocket::get("/login/reddit")]
+    /// fn reddit_login(oauth2: OAuth2<Reddit>, mut cookies: Cookies<'_>) -> Redirect {
+    ///     oauth2.get_redirect_extras(&mut cookies, &["identity"], &[("duration", "permanent")]).unwrap()
+    /// }
+    /// ```
+    pub fn get_redirect_extras(
+        &self,
+        cookies: &mut Cookies<'_>,
+        scopes: &[&str],
+        extras: &[(&str, &str)],
+    ) -> Result<Redirect, Error> {
         let state = generate_state(&mut rand::thread_rng())?;
         let uri = self
             .0
             .adapter
-            .authorization_uri(&self.0.config, &state, scopes)?;
+            .authorization_uri(&self.0.config, &state, scopes, extras)?;
         cookies.add_private(
             Cookie::build(STATE_COOKIE_NAME, state)
                 .same_site(SameSite::Lax)

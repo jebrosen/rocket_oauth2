@@ -74,6 +74,7 @@ impl Adapter for HyperSyncRustlsAdapter {
         config: &OAuthConfig,
         state: &str,
         scopes: &[&str],
+        extras: &[(&str, &str)],
     ) -> Result<Absolute<'static>, Error> {
         let auth_uri = config.provider().auth_uri();
 
@@ -92,6 +93,17 @@ impl Adapter for HyperSyncRustlsAdapter {
         if !scopes.is_empty() {
             url.query_pairs_mut()
                 .append_pair("scope", &scopes.join(" "));
+        }
+
+        // Request parameters must not be included more than once. This
+        // adapter chooses to ignore duplicates instead of overwriting.
+        for (name, value) in extras {
+            match *name {
+                "response_type" | "client_id" | "state" => continue,
+                "redirect_uri" if config.redirect_uri().is_some() => continue,
+                "scope" if !scopes.is_empty() => continue,
+                _ => url.query_pairs_mut().append_pair(name, value),
+            };
         }
 
         Ok(Absolute::parse(url.as_ref())
