@@ -87,7 +87,8 @@ impl Adapter for HyperSyncRustlsAdapter {
             .append_pair("state", state);
 
         if let Some(redirect_uri) = config.redirect_uri() {
-            url.query_pairs_mut().append_pair("redirect_uri", redirect_uri);
+            url.query_pairs_mut()
+                .append_pair("redirect_uri", redirect_uri);
         }
 
         if !scopes.is_empty() {
@@ -140,11 +141,10 @@ impl Adapter for HyperSyncRustlsAdapter {
         }
 
         if self.use_basic_auth {
-            request = request
-                .header(Authorization(Basic {
-                    username: config.client_id().to_string(),
-                    password: Some(config.client_secret().to_string()),
-                }));
+            request = request.header(Authorization(Basic {
+                username: config.client_id().to_string(),
+                password: Some(config.client_secret().to_string()),
+            }));
         } else {
             ser.append_pair("client_id", config.client_id());
             ser.append_pair("client_secret", config.client_secret());

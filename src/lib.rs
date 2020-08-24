@@ -481,7 +481,7 @@ impl<'a, 'r, K: 'static> FromRequest<'a, 'r> for TokenResponse<K> {
                 return Outcome::Failure((
                     Status::BadRequest,
                     Error::new_from(ErrorKind::ExchangeFailure, format!("{:?}", e)),
-                ))
+                ));
             }
         };
 
@@ -507,7 +507,7 @@ impl<'a, 'r, K: 'static> FromRequest<'a, 'r> for TokenResponse<K> {
                             ErrorKind::ExchangeFailure,
                             "The OAuth2 state returned from the server did match the stored state.",
                         ),
-                    ))
+                    ));
                 }
             }
         }
