@@ -1,6 +1,6 @@
 [package]
 name = "rocket_oauth2"
-version = "0.3.1"
+version = "0.4.0"
 description = "OAuth2 for Rocket applications"
 documentation = "https://docs.rs/rocket_oauth2/"
 homepage = "https://github.com/jebrosen/rocket_oauth2"
