@@ -119,7 +119,7 @@ impl OAuthConfig {
 
     /// Get the redirect URI for this configuration.
     pub fn redirect_uri(&self) -> Option<&str> {
-        self.redirect_uri.as_ref().map(String::as_str)
+        self.redirect_uri.as_deref()
     }
 }
 

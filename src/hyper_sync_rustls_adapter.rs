@@ -61,10 +61,7 @@ impl HyperSyncRustlsAdapter {
     /// }
     /// ```
     pub fn basic_auth(self, use_basic_auth: bool) -> Self {
-        Self {
-            use_basic_auth,
-            ..self
-        }
+        Self { use_basic_auth }
     }
 }
 

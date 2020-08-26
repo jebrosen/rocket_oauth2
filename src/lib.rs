@@ -134,6 +134,7 @@
 //! ```
 
 #![warn(future_incompatible, nonstandard_style, missing_docs)]
+#![allow(clippy::needless_doctest_main)] // used intentionally for illustrative purposes
 
 mod config;
 mod error;
