@@ -21,10 +21,10 @@ hyper_sync_rustls_adapter = ["hyper", "hyper-sync-rustls"]
 base64 = "0.12"
 log = "0.4.4"
 rand = { version = "0.7", default-features = false, features = ["std"] }
-rocket = { version = "0.4", default-features = false, features = ["private-cookies"] }
+rocket = { version = "0.4.5", default-features = false, features = ["private-cookies"] }
 serde_json = "1.0"
 url = "2.0"
 
 # hyper-sync-rustls adapter
 hyper = { version = "0.10", optional = true }
-hyper-sync-rustls = { version = "=0.3.0-rc.4", optional = true }
+hyper-sync-rustls = { version = ">=0.3.0-rc.4, <0.3.0-rc.18", optional = true }
