@@ -1,17 +1,56 @@
 # rocket_oauth2
 
-`rocket_oauth2` makes it easy to use OAuth2 in Rocket applications:
+`rocket_oauth2` helps set up OAuth 2.0 sign-in or authorization in
+[Rocket](https://rocket.rs) applications.
 
-* Facilitates OAuth 2.0 client functionality to obtain authorization from users.
-* Handles the authorization callback and token exchange.
-* Runs an application-specific callback when a token has been successfully obtained.
-* Optionally mounts a login route that redirects to the authorization endpoint.
-* Supports attachment of multiple callbacks and service providers.
+## Quickstart Example
 
-## Example
+For more detailed examples and explanations, see the crate documentation and the
+projects in the repository's `examples` directory.
 
-See the `examples` directory for more details, including the implementations
-of `GitHubCallback` and `GoogleCallback`.
+### Code
+
+```rust
+use rocket::http::{Cookie, Cookies, SameSite};
+use rocket::Request;
+use rocket::response::Redirect;
+use rocket_oauth2::{OAuth2, TokenResponse};
+
+struct GitHub;
+
+#[get("/login/github")]
+fn github_login(oauth2: OAuth2<GitHub>, mut cookies: Cookies<'_>) -> Redirect {
+    oauth2.get_redirect(&mut cookies, &["user:read"]).unwrap()
+}
+
+#[get("/auth/github")]
+fn github_callback(token: TokenResponse<GitHub>, mut cookies: Cookies<'_>) -> Redirect
+{
+    cookies.add_private(
+        Cookie::build("token", token.access_token().to_string())
+            .same_site(SameSite::Lax)
+            .finish()
+    );
+    Redirect::to("/")
+}
+
+fn main() {
+    rocket::ignite()
+        .mount("/", routes![github_callback, github_login])
+        .attach(OAuth2::<GitHub>::fairing("github"))
+        .launch();
+}
+```
+
+### Configuration (`Rocket.toml`)
+
+```toml
+[global.oauth.github]
+provider = "GitHub"
+client_id = "..."
+client_secret = "..."
+redirect_uri = "http://localhost:8000/auth/github"
+```
 
 ## License
 
