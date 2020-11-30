@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::fmt;
 
-use rocket::config::{self, Config, ConfigError, Table, Value};
+use rocket::figment::{self, Figment, Error};
 
 /// Holds configuration for an OAuth application. This consists of the [Provider]
 /// details, a `client_id` and `client_secret`, and an optional `redirect_uri`.
@@ -48,7 +48,7 @@ impl OAuthConfig {
     /// ## Rocket.toml
     ///
     /// ```toml
-    /// [global.oauth.github]
+    /// [default.oauth.github]
     /// provider = "GitHub"
     /// client_id = "..."
     /// client_secret = "..."
@@ -58,47 +58,54 @@ impl OAuthConfig {
     /// ## main.rs
     /// ```rust,no_run
     /// use rocket::fairing::AdHoc;
-    /// use rocket_oauth2::{HyperSyncRustlsAdapter, OAuth2, OAuthConfig};
+    /// use rocket_oauth2::{HyperRustlsAdapter, OAuth2, OAuthConfig};
     ///
     /// struct GitHub;
     ///
-    /// fn main() {
+    /// #[rocket::launch]
+    /// fn rocket() -> rocket::Rocket {
     ///     rocket::ignite()
-    ///         .attach(AdHoc::on_attach("OAuth Config", |rocket| {
-    ///             let config = OAuthConfig::from_config(rocket.config(), "github").unwrap();
-    ///             Ok(rocket.attach(OAuth2::<GitHub>::custom(HyperSyncRustlsAdapter::default(), config)))
+    ///         .attach(AdHoc::on_attach("OAuth Config", |mut rocket| async {
+    ///             let config = OAuthConfig::from_figment(rocket.figment(), "github").unwrap();
+    ///             Ok(rocket.attach(OAuth2::<GitHub>::custom(HyperRustlsAdapter::default(), config)))
     ///         }))
-    ///         .launch();
     /// }
     /// ```
-    pub fn from_config(config: &Config, name: &str) -> config::Result<OAuthConfig> {
-        let oauth = config.get_table("oauth")?;
-        let conf = oauth
-            .get(name)
-            .ok_or_else(|| ConfigError::Missing(name.to_string()))?;
+    pub fn from_figment(figment: &Figment, name: &str) -> Result<Self, Error> {
+        #[derive(serde::Deserialize)]
+        struct Config {
+            provider: Option<String>,
+            auth_uri: Option<String>,
+            token_uri: Option<String>,
+            client_id: String,
+            client_secret: String,
+            redirect_uri: Option<String>,
+        }
 
-        let table = conf
-            .as_table()
-            .ok_or_else(|| ConfigError::BadType(name.into(), "table", conf.type_str(), None))?;
+        let conf: Config = figment.extract_inner(&format!("oauth.{}", name))?;
 
-        let provider = match conf.get("provider") {
-            Some(v) => provider_from_config_value(v),
-            None => Err(ConfigError::Missing("provider".to_string())),
-        }?;
-
-        let client_id = get_config_string(table, "client_id")?;
-        let client_secret = get_config_string(table, "client_secret")?;
-        let redirect_uri = match get_config_string(table, "redirect_uri") {
-            Ok(s) => Some(s),
-            Err(ConfigError::Missing(_)) => None,
-            Err(e) => return Err(e),
+        let provider = match (conf.provider, conf.auth_uri, conf.token_uri) {
+            (Some(provider_name), None, None) => StaticProvider::from_known_name(&provider_name)
+                .ok_or_else(|| {
+                    figment::error::Kind::InvalidValue(
+                        figment::error::Actual::Str(provider_name),
+                        "one of the predefined 'provider' names".into(),
+                    )
+                })?,
+            (None, Some(auth_uri), Some(token_uri)) => StaticProvider {
+                auth_uri: auth_uri.into(),
+                token_uri: token_uri.into(),
+            },
+            _ => {
+                return Err("either 'provider' or both 'auth_uri' and 'token_uri' should be specified, but not both".to_string().into());
+            }
         };
 
         Ok(OAuthConfig::new(
             provider,
-            client_id,
-            client_secret,
-            redirect_uri,
+            conf.client_id,
+            conf.client_secret,
+            conf.redirect_uri,
         ))
     }
 
@@ -131,37 +138,6 @@ impl fmt::Debug for OAuthConfig {
             .field("client_secret", &self.client_secret)
             .field("redirect_uri", &self.redirect_uri)
             .finish()
-    }
-}
-
-fn get_config_string(table: &Table, key: &str) -> config::Result<String> {
-    let value = table
-        .get(key)
-        .ok_or_else(|| ConfigError::Missing(key.into()))?;
-
-    let string = value
-        .as_str()
-        .ok_or_else(|| ConfigError::BadType(key.into(), "string", value.type_str(), None))?;
-
-    Ok(string.to_string())
-}
-
-fn provider_from_config_value(conf: &Value) -> Result<StaticProvider, ConfigError> {
-    let type_error =
-        || ConfigError::BadType("provider".into(), "known provider or table", "", None);
-
-    match conf {
-        Value::String(s) => StaticProvider::from_known_name(s).ok_or_else(type_error),
-        Value::Table(t) => {
-            let auth_uri = get_config_string(t, "auth_uri")?.into();
-            let token_uri = get_config_string(t, "token_uri")?.into();
-
-            Ok(StaticProvider {
-                auth_uri,
-                token_uri,
-            })
-        }
-        _ => Err(type_error()),
     }
 }
 

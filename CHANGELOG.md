@@ -4,6 +4,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.5.0 - Unreleased
+### Changed
+- Updated the `rocket` dependency to 0.5
+  - Refactored `rocket_oauth2` to support `async`
+    - Changed `Adapter` and impls to use `#[async_trait]`
+    - Made `Adapter::exchange_code` and `OAuth2::refresh` into `async fn`s
+  - Replaced `OAuth2Config::from_config` with `OAuth2Config::from_figment`
+  - Replaced `HyperSyncRustlsAdapter` with `HyperRustlsAdapter`; the feature
+    flag has also been replaced with `hyper_rustls_adapter`
+
+### Removed
+- Removed support for specifying `provider` as a table with `auth_uri`
+  and `token_uri` values.
+
+### Migration Notes
+Most users of this library can simply change `HyperSyncRustlsAdapter` to
+`HyperRustlsAdapter`.
+
+If you previously specified `provider` as a table including `auth_uri` and
+`token_uri`, move the values up into the main config and delete the empty
+`provider`.
+
+Custom `Adapter` implementations must now be annotated with
+`#[async_trait::async_trait]` and `Adapter::exchange_code` has been changed to
+an `async fn`.
+
 ## 0.4.1 - 2020-09-23
 ### Changed
 - The version requirement for `hyper_sync_rustls` has been loosened, allowing

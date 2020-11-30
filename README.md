@@ -45,7 +45,7 @@ fn main() {
 ### Configuration (`Rocket.toml`)
 
 ```toml
-[global.oauth.github]
+[default.oauth.github]
 provider = "GitHub"
 client_id = "..."
 client_secret = "..."

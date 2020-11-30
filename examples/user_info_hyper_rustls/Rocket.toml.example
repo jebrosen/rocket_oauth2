@@ -1,4 +1,4 @@
-[global.oauth.github]
+[default.oauth.github]
 provider = "GitHub"
 client_id = "<client_id>"
 client_secret = "<client_secret>"
@@ -7,13 +7,13 @@ client_secret = "<client_secret>"
 # correctly on the provider's configuration page for the OAuth2 application.
 #redirect_uri = "http://localhost:8000/auth/github"
 
-[global.oauth.google]
+[default.oauth.google]
 provider = "Google"
 client_id = "<client_id>"
 client_secret = "<client_secret>"
 redirect_uri = "http://localhost:8000/auth/google"
 
-[global.oauth.microsoft]
+[default.oauth.microsoft]
 provider = "Microsoft"
 client_id = "<client_id>"
 client_secret = "<client_secret>"

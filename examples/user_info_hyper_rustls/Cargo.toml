@@ -1,7 +1,7 @@
 [package]
-name = "user_info_custom_provider"
+name = "user_info_hyper_rustls"
 version = "0.0.0"
-authors = ["Chris Zehner <cbzehner@gmail.com>"]
+authors = ["jeb <jeb@jebrosen.com>"]
 publish = false
 edition = "2018"
 

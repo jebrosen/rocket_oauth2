@@ -5,7 +5,7 @@
 //!
 //! ## Requirements
 //!
-//! * Rocket 0.4
+//! * Rocket 0.5
 //!
 //! ## API Stability
 //!
@@ -35,7 +35,7 @@
 //! The [`Adapter`] trait defines how the temporary code from the authorization
 //! server is exchanged for an authentication token. `rocket_oauth2` currently
 //! provides only one `Adapter`, using
-//! [`hyper-sync-rustls`](https://github.com/SergioBenitez/hyper-sync-rustls).
+//! [`hyper-rustls`](https://github.com/ctz/hyper-rustls).
 //!
 //! If necessary a custom `Adapter` can be used, for example to work around
 //! a noncompliant authorization server.
@@ -44,7 +44,7 @@
 //!
 //! Configure your OAuth client settings in `Rocket.toml`:
 //! ```toml
-//! [global.oauth.github]
+//! [default.oauth.github]
 //! provider = "GitHub"
 //! client_id = "..."
 //! client_secret = "..."
@@ -55,10 +55,9 @@
 //! and attach the [OAuth2 Fairing](OAuth2::fairing()):
 //!
 //! ```rust,no_run
-//! # #![feature(proc_macro_hygiene, decl_macro)]
 //! # #[macro_use] extern crate rocket;
 //! # extern crate rocket_oauth2;
-//! # use rocket::http::{Cookie, Cookies, SameSite};
+//! # use rocket::http::{Cookie, CookieJar, SameSite};
 //! # use rocket::Request;
 //! # use rocket::response::Redirect;
 //! use rocket_oauth2::{OAuth2, TokenResponse};
@@ -71,23 +70,19 @@
 //! // This route calls `get_redirect`, which sets up a token request and
 //! // returns a `Redirect` to the authorization endpoint.
 //! #[get("/login/github")]
-//! fn github_login(oauth2: OAuth2<GitHub>, mut cookies: Cookies<'_>) -> Redirect {
+//! fn github_login(oauth2: OAuth2<GitHub>, cookies: &CookieJar<'_>) -> Redirect {
 //!     // We want the "user:read" scope. For some providers, scopes may be
 //!     // pre-selected or restricted during application registration. We could
 //!     // use `&[]` instead to not request any scopes, but usually scopes
 //!     // should be requested during registation, in the redirect, or both.
-//!     oauth2.get_redirect(&mut cookies, &["user:read"]).unwrap()
+//!     oauth2.get_redirect(cookies, &["user:read"]).unwrap()
 //! }
 //!
 //! // This route, mounted at the application's Redirect URI, uses the
 //! // `TokenResponse` request guard to complete the token exchange and obtain
 //! // the token.
-//! //
-//! // The order is important here! If Cookies is positioned before
-//! // TokenResponse, TokenResponse will be unable to verify the token exchange
-//! // and return a failure.
 //! #[get("/auth/github")]
-//! fn github_callback(token: TokenResponse<GitHub>, mut cookies: Cookies<'_>) -> Redirect
+//! fn github_callback(token: TokenResponse<GitHub>, cookies: &CookieJar<'_>) -> Redirect
 //! {
 //!     // Set a private cookie with the access token
 //!     cookies.add_private(
@@ -98,12 +93,12 @@
 //!     Redirect::to("/")
 //! }
 //!
-//! fn main() {
+//! #[rocket::launch]
+//! fn rocket() -> _ {
 //!     rocket::ignite()
 //!         .mount("/", routes![github_callback, github_login])
-//!         // The string "github" here matches [global.oauth2.github] in `Rocket.toml`
+//!         // The string "github" here matches [default.oauth.github] in `Rocket.toml`
 //!         .attach(OAuth2::<GitHub>::fairing("github"))
-//!         .launch();
 //! }
 //! ```
 //!
@@ -114,7 +109,7 @@
 //! [`StaticProvider`] type.
 //!
 //! ```toml
-//! [global.oauth.github]
+//! [default.oauth.github]
 //! # Using a known provider name
 //! provider = "GitHub"
 //! client_id = "..."
@@ -126,7 +121,7 @@
 //! `token_uri` values:
 //!
 //! ```toml
-//! [global.oauth.custom]
+//! [default.oauth.custom]
 //! provider = { auth_uri = "https://example.com/oauth/authorize", token_uri = "https://example.com/oauth/token" }
 //! client_id = "..."
 //! client_secret = "..."
@@ -139,10 +134,10 @@
 mod config;
 mod error;
 
-#[cfg(feature = "hyper_sync_rustls_adapter")]
-mod hyper_sync_rustls_adapter;
-#[cfg(feature = "hyper_sync_rustls_adapter")]
-pub use hyper_sync_rustls_adapter::HyperSyncRustlsAdapter;
+#[cfg(feature = "hyper_rustls_adapter")]
+mod hyper_rustls_adapter;
+#[cfg(feature = "hyper_rustls_adapter")]
+pub use hyper_rustls_adapter::HyperRustlsAdapter;
 
 pub use self::config::*;
 pub use self::error::*;
@@ -154,10 +149,9 @@ use std::sync::Arc;
 use log::{error, warn};
 use rocket::fairing::{AdHoc, Fairing};
 use rocket::http::uri::Absolute;
-use rocket::http::{Cookie, Cookies, SameSite, Status};
-use rocket::request::{self, FormItems, FromForm, FromRequest, Request};
+use rocket::http::{Cookie, CookieJar, SameSite, Status};
+use rocket::request::{self, FormItems, FromForm, FromRequest, Outcome, Request};
 use rocket::response::Redirect;
-use rocket::{Outcome, State};
 use serde_json::Value;
 
 const STATE_COOKIE_NAME: &str = "rocket_oauth2_state";
@@ -188,48 +182,23 @@ pub enum TokenRequest {
 /// in RFC 6749 §5.1.
 ///
 /// `TokenResponse<K>` implements `FromRequest`, and is used in the callback
-/// route to complete the token exchange. Since `TokenResponse` accesses
-/// [`Cookies`], it must be positioned *before* `Cookies` in routes.
-/// For more information, see [the rocket.rs guide].
+/// route to complete the token exchange.
 ///
 /// # Example
 ///
 /// ```rust
-/// # #![feature(proc_macro_hygiene, decl_macro)]
 /// # #[macro_use] extern crate rocket;
-/// # use rocket::http::Cookies;
+/// # use rocket::http::CookieJar;
 /// # use rocket::response::Redirect;
 /// # struct Auth;
 /// use rocket_oauth2::TokenResponse;
 ///
-/// // Bad! This will fail at runtime:
-/// // "Error: Multiple `Cookies` instances are active at once."
 /// #[get("/auth")]
-/// fn auth_callback(mut cookies: Cookies<'_>, token: TokenResponse<Auth>) -> Redirect {
+/// fn auth_callback(token: TokenResponse<Auth>, cookies: &CookieJar<'_>) -> Redirect {
 ///      // ...
 /// #    Redirect::to("/")
 /// }
 /// ```
-///
-/// ```rust
-/// # #![feature(proc_macro_hygiene, decl_macro)]
-/// # #[macro_use] extern crate rocket;
-/// # use rocket::http::Cookies;
-/// # use rocket::response::Redirect;
-/// # struct Auth;
-/// use rocket_oauth2::TokenResponse;
-///
-/// // Good. TokenResponse will access and then release Cookies,
-/// // and then both TokenResponse and Cookies will be given to the route.
-/// #[get("/auth")]
-/// fn auth_callback(token: TokenResponse<Auth>, mut cookies: Cookies<'_>) -> Redirect {
-///      // ...
-/// #    Redirect::to("/")
-/// }
-/// ```
-///
-/// [`Cookies`]: https://api.rocket.rs/v0.4/rocket/http/enum.Cookies.html
-/// [the rocket.rs guide]: https://rocket.rs/v0.4/guide/requests/#one-at-a-time
 #[derive(Clone, PartialEq, Debug)]
 pub struct TokenResponse<K> {
     data: Value,
@@ -245,7 +214,6 @@ impl<K> TokenResponse<K> {
     /// # Example
     ///
     /// ```rust
-    /// # #![feature(decl_macro)]
     /// use rocket_oauth2::TokenResponse;
     ///
     /// struct GitHub;
@@ -272,7 +240,6 @@ impl<K> TokenResponse<K> {
     /// # Example
     ///
     /// ```rust
-    /// # #![feature(decl_macro)]
     /// use rocket_oauth2::TokenResponse;
     ///
     /// struct MyProvider;
@@ -291,7 +258,6 @@ impl<K> TokenResponse<K> {
     /// # Example
     ///
     /// ```rust
-    /// # #![feature(decl_macro)]
     /// use rocket_oauth2::TokenResponse;
     ///
     /// struct GitHub;
@@ -313,7 +279,6 @@ impl<K> TokenResponse<K> {
     /// # Example
     ///
     /// ```rust
-    /// # #![feature(decl_macro)]
     /// use rocket_oauth2::TokenResponse;
     ///
     /// struct GitHub;
@@ -335,7 +300,6 @@ impl<K> TokenResponse<K> {
     /// # Example
     ///
     /// ```rust
-    /// # #![feature(decl_macro)]
     /// use rocket_oauth2::TokenResponse;
     ///
     /// struct GitHub;
@@ -356,7 +320,6 @@ impl<K> TokenResponse<K> {
     /// # Example
     ///
     /// ```rust
-    /// # #![feature(decl_macro)]
     /// use rocket_oauth2::TokenResponse;
     ///
     /// struct GitHub;
@@ -383,7 +346,6 @@ impl<K> TokenResponse<K> {
     /// # Example
     ///
     /// ```rust
-    /// # #![feature(decl_macro)]
     /// use rocket_oauth2::TokenResponse;
     ///
     /// struct GitHub;
@@ -440,6 +402,7 @@ impl std::convert::TryFrom<Value> for TokenResponse<()> {
     }
 }
 
+#[rocket::async_trait]
 impl<'a, 'r, K: 'static> FromRequest<'a, 'r> for TokenResponse<K> {
     type Error = Error;
 
@@ -447,11 +410,10 @@ impl<'a, 'r, K: 'static> FromRequest<'a, 'r> for TokenResponse<K> {
     // TODO: What do providers do if they *reject* the authorization?
     /// Handle the redirect callback, delegating to the Adapter to perform the
     /// token exchange.
-    fn from_request(request: &'a Request<'r>) -> request::Outcome<Self, Self::Error> {
+    async fn from_request(request: &'a Request<'r>) -> request::Outcome<Self, Self::Error> {
         let oauth2 = request
-            .guard::<State<Arc<Shared<K>>>>()
-            .expect("OAuth2 fairing was not attached for this key type!")
-            .inner();
+            .managed_state::<Arc<Shared<K>>>()
+            .expect("OAuth2 fairing was not attached for this key type!");
 
         // Parse the query data.
         let query = match request.uri().query() {
@@ -489,7 +451,7 @@ impl<'a, 'r, K: 'static> FromRequest<'a, 'r> for TokenResponse<K> {
         {
             // Verify that the given state is the same one in the cookie.
             // Begin a new scope so that cookies is not kept around too long.
-            let mut cookies = request.guard::<Cookies<'_>>().expect("request cookies");
+            let cookies = request.guard::<&CookieJar<'_>>().await.expect("request cookies");
             match cookies.get_private(STATE_COOKIE_NAME) {
                 Some(ref cookie) if cookie.value() == params.state => {
                     cookies.remove(cookie.clone());
@@ -498,8 +460,7 @@ impl<'a, 'r, K: 'static> FromRequest<'a, 'r> for TokenResponse<K> {
                     if other.is_some() {
                         warn!("The OAuth2 state returned from the server did not match the stored state.");
                     } else {
-                        error!("The OAuth2 state cookie was missing. It may have been blocked by the client, \
-                                or perhaps a `Cookies` guard is already active?");
+                        error!("The OAuth2 state cookie was missing. It may have been blocked by the client?");
                     }
 
                     return Outcome::Failure((
@@ -517,6 +478,7 @@ impl<'a, 'r, K: 'static> FromRequest<'a, 'r> for TokenResponse<K> {
         match oauth2
             .adapter
             .exchange_code(&oauth2.config, TokenRequest::AuthorizationCode(params.code))
+            .await
         {
             Ok(mut token) => {
                 // Some providers (at least Strava) provide 'scope' in the callback
@@ -544,6 +506,7 @@ impl<'a, 'r, K: 'static> FromRequest<'a, 'r> for TokenResponse<K> {
 /// Authorization Code Grant as described in RFC 6749 §4.1. The implementing
 /// type must be able to generate an authorization URI and perform the token
 /// exchange.
+#[async_trait::async_trait]
 pub trait Adapter: Send + Sync + 'static {
     /// Generate an authorization URI as described by RFC 6749 §4.1.1 given
     /// configuration, state, and scopes. Implementations *should* include
@@ -558,7 +521,7 @@ pub trait Adapter: Send + Sync + 'static {
 
     /// Perform the token exchange in accordance with RFC 6749 §4.1.3 given the
     /// authorization code provided by the service.
-    fn exchange_code(
+    async fn exchange_code(
         &self,
         config: &OAuthConfig,
         token: TokenRequest,
@@ -583,22 +546,21 @@ impl<K: 'static> OAuth2<K> {
     ///
     /// ```rust,no_run
     /// use rocket::fairing::AdHoc;
-    /// use rocket_oauth2::{HyperSyncRustlsAdapter, OAuth2, OAuthConfig};
+    /// use rocket_oauth2::{HyperRustlsAdapter, OAuth2, OAuthConfig};
     ///
     /// struct GitHub;
     ///
-    /// fn main() {
-    ///     rocket::ignite()
-    ///         .attach(OAuth2::<GitHub>::fairing("github"))
-    ///         .launch();
+    /// #[rocket::launch]
+    /// fn rocket() -> _ {
+    ///     rocket::ignite().attach(OAuth2::<GitHub>::fairing("github"))
     /// }
-    #[cfg(feature = "hyper_sync_rustls_adapter")]
+    #[cfg(feature = "hyper_rustls_adapter")]
     pub fn fairing(config_name: &str) -> impl Fairing {
         // Unfortunate allocations, but necessary because on_attach requires 'static
         let config_name = config_name.to_string();
 
-        AdHoc::on_attach("OAuth Init", move |rocket| {
-            let config = match OAuthConfig::from_config(rocket.config(), &config_name) {
+        AdHoc::on_attach("OAuth Init", |rocket| async move {
+            let config = match OAuthConfig::from_figment(rocket.figment(), &config_name) {
                 Ok(c) => c,
                 Err(e) => {
                     log::error!("Invalid configuration: {:?}", e);
@@ -607,7 +569,7 @@ impl<K: 'static> OAuth2<K> {
             };
 
             Ok(rocket.attach(Self::custom(
-                hyper_sync_rustls_adapter::HyperSyncRustlsAdapter::default(),
+                hyper_rustls_adapter::HyperRustlsAdapter::default(),
                 config,
             )))
         })
@@ -619,13 +581,14 @@ impl<K: 'static> OAuth2<K> {
     ///
     /// ```rust,no_run
     /// use rocket::fairing::AdHoc;
-    /// use rocket_oauth2::{HyperSyncRustlsAdapter, OAuth2, OAuthConfig, StaticProvider};
+    /// use rocket_oauth2::{HyperRustlsAdapter, OAuth2, OAuthConfig, StaticProvider};
     ///
     /// struct MyProvider;
     ///
-    /// fn main() {
+    /// #[rocket::launch]
+    /// fn rocket() -> _ {
     ///     rocket::ignite()
-    ///         .attach(AdHoc::on_attach("OAuth Config", |rocket| {
+    ///         .attach(AdHoc::on_attach("OAuth Config", |rocket| async {
     ///             let config = OAuthConfig::new(
     ///                 StaticProvider {
     ///                     auth_uri: "auth uri".into(),
@@ -635,9 +598,8 @@ impl<K: 'static> OAuth2<K> {
     ///                 "client secret".to_string(),
     ///                 Some("http://localhost:8000/auth".to_string()),
     ///             );
-    ///             Ok(rocket.attach(OAuth2::<MyProvider>::custom(HyperSyncRustlsAdapter::default(), config)))
+    ///             Ok(rocket.attach(OAuth2::<MyProvider>::custom(HyperRustlsAdapter::default(), config)))
     ///         }))
-    ///         .launch();
     /// }
     pub fn custom<A: Adapter>(adapter: A, config: OAuthConfig) -> impl Fairing {
         let shared = Shared::<K> {
@@ -646,7 +608,7 @@ impl<K: 'static> OAuth2<K> {
             _k: PhantomData,
         };
 
-        AdHoc::on_attach("OAuth Mount", |rocket| Ok(rocket.manage(Arc::new(shared))))
+        AdHoc::on_attach("OAuth Mount", |rocket| async { Ok(rocket.manage(Arc::new(shared))) })
     }
 
     /// Prepare an authentication redirect. This sets a state cookie and returns
@@ -655,21 +617,20 @@ impl<K: 'static> OAuth2<K> {
     /// # Example
     ///
     /// ```rust
-    /// # #![feature(decl_macro)]
-    /// use rocket::http::Cookies;
+    /// use rocket::http::CookieJar;
     /// use rocket::response::Redirect;
     /// use rocket_oauth2::OAuth2;
     ///
     /// struct GitHub;
     ///
     /// #[rocket::get("/login/github")]
-    /// fn github_login(oauth2: OAuth2<GitHub>, mut cookies: Cookies<'_>) -> Redirect {
-    ///     oauth2.get_redirect(&mut cookies, &["user:read"]).unwrap()
+    /// fn github_login(oauth2: OAuth2<GitHub>, cookies: &CookieJar<'_>) -> Redirect {
+    ///     oauth2.get_redirect(cookies, &["user:read"]).unwrap()
     /// }
     /// ```
     pub fn get_redirect(
         &self,
-        cookies: &mut Cookies<'_>,
+        cookies: &CookieJar<'_>,
         scopes: &[&str],
     ) -> Result<Redirect, Error> {
         self.get_redirect_extras(cookies, scopes, &[])
@@ -685,21 +646,20 @@ impl<K: 'static> OAuth2<K> {
     /// # Example
     ///
     /// ```rust
-    /// # #![feature(decl_macro)]
-    /// use rocket::http::Cookies;
+    /// use rocket::http::CookieJar;
     /// use rocket::response::Redirect;
     /// use rocket_oauth2::OAuth2;
     ///
     /// struct Reddit;
     ///
     /// #[rocket::get("/login/reddit")]
-    /// fn reddit_login(oauth2: OAuth2<Reddit>, mut cookies: Cookies<'_>) -> Redirect {
-    ///     oauth2.get_redirect_extras(&mut cookies, &["identity"], &[("duration", "permanent")]).unwrap()
+    /// fn reddit_login(oauth2: OAuth2<Reddit>, cookies: &CookieJar<'_>) -> Redirect {
+    ///     oauth2.get_redirect_extras(cookies, &["identity"], &[("duration", "permanent")]).unwrap()
     /// }
     /// ```
     pub fn get_redirect_extras(
         &self,
-        cookies: &mut Cookies<'_>,
+        cookies: &CookieJar<'_>,
         scopes: &[&str],
         extras: &[(&str, &str)],
     ) -> Result<Redirect, Error> {
@@ -722,36 +682,37 @@ impl<K: 'static> OAuth2<K> {
     /// # Example
     ///
     /// ```rust
-    /// # #![feature(decl_macro)]
     /// use rocket_oauth2::OAuth2;
     ///
     /// struct GitHub;
     ///
     /// #[rocket::get("/")]
-    /// fn index(oauth2: OAuth2<GitHub>) {
+    /// async fn index(oauth2: OAuth2<GitHub>) {
     ///     // get previously stored refresh_token
     ///     # let refresh_token = "";
-    ///     oauth2.refresh(refresh_token).unwrap();
+    ///     oauth2.refresh(refresh_token).await.unwrap();
     /// }
     /// ```
-    pub fn refresh(&self, refresh_token: &str) -> Result<TokenResponse<K>, Error> {
+    pub async fn refresh(&self, refresh_token: &str) -> Result<TokenResponse<K>, Error> {
         self.0
             .adapter
             .exchange_code(
                 &self.0.config,
                 TokenRequest::RefreshToken(refresh_token.to_string()),
             )
+            .await
             .map(TokenResponse::cast)
     }
 }
 
+#[rocket::async_trait]
 impl<'a, 'r, K: 'static> FromRequest<'a, 'r> for OAuth2<K> {
     type Error = ();
 
-    fn from_request(request: &'a Request<'r>) -> request::Outcome<Self, Self::Error> {
+    async fn from_request(request: &'a Request<'r>) -> request::Outcome<Self, Self::Error> {
         Outcome::Success(OAuth2(
             request
-                .guard::<State<Arc<Shared<K>>>>()
+                .managed_state::<Arc<Shared<K>>>()
                 .expect("OAuth2 fairing was not attached for this key type!")
                 .clone(),
         ))
