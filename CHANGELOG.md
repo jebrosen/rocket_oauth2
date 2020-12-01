@@ -18,17 +18,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed support for specifying `provider` as a table with `auth_uri`
   and `token_uri` values.
 
-### Migration Notes
-Most users of this library can simply change `HyperSyncRustlsAdapter` to
-`HyperRustlsAdapter`.
-
-If you previously specified `provider` as a table including `auth_uri` and
-`token_uri`, move the values up into the main config and delete the empty
-`provider`.
-
-Custom `Adapter` implementations must now be annotated with
-`#[async_trait::async_trait]` and `Adapter::exchange_code` has been changed to
-an `async fn`.
+### Migration Guide
+* If you specified `provider` as a table including `auth_uri` and `token_uri`,
+  remove the intermediate `provider` table and move `auth_uri` and `token_uri`
+  to the level `provider` was at.
+* Change references to `hyper_sync_rustls_adapter` to `hyper_rustls_adapter`,
+  and `HyperSyncRustlsAdapter` with `HyperRustlsAdapter`.
+* Change calls to `OAuth2Config::from_config` to `OAuth2Config::from_figment`.
+* Add `#[async_trait::async_trait]` to `Adapter` implementations, and change
+  `exchange_code` to an `async fn` using an `async` HTTP client or a
+  synchronous HTTP client wrapped in a `spawn_blocking` call.
+* Add `.await` after calls to `Adapter::exchange_code()` and
+  `OAuth2::refresh()`.
 
 ## 0.4.1 - 2020-09-23
 ### Changed
