@@ -11,7 +11,7 @@ readme = "README.md"
 edition = "2018"
 
 [workspace]
-members = ["examples/user_info_hyper_rustls", "examples/user_info_custom_provider"]
+members = ["examples/user_info", "examples/user_info_custom_provider"]
 
 [features]
 default = ["hyper_rustls_adapter"]

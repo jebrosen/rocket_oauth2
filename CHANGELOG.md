@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Replaced `OAuth2Config::from_config` with `OAuth2Config::from_figment`
   - Replaced `HyperSyncRustlsAdapter` with `HyperRustlsAdapter`; the feature
     flag has also been replaced with `hyper_rustls_adapter`
+- Rewrote the primary example with `reqwest` and renamed it to `user_info`
 
 ### Removed
 - Removed support for specifying `provider` as a table with `auth_uri`

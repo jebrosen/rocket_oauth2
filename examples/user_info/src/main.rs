@@ -1,11 +1,5 @@
 use anyhow::{Context, Error};
-use hyper::{
-    body,
-    header::{ACCEPT, AUTHORIZATION, USER_AGENT},
-    Body,
-    Client,
-    Request,
-};
+use reqwest::header::{ACCEPT, AUTHORIZATION, USER_AGENT};
 use rocket::http::{Cookie, CookieJar, SameSite};
 use rocket::request;
 use rocket::response::{Debug, Redirect};
@@ -54,29 +48,19 @@ async fn github_callback(
     token: TokenResponse<GitHubUserInfo>,
     cookies: &CookieJar<'_>,
 ) -> Result<Redirect, Debug<Error>> {
-    let client = Client::builder().build(hyper_rustls::HttpsConnector::new());
-
     // Use the token to retrieve the user's GitHub account information.
-    let request = Request::get("https://api.github.com/user")
+    let user_info: GitHubUserInfo = reqwest::Client::builder()
+        .build()
+        .context("failed to build reqwest client")?
+        .get("https://api.github.com/user")
         .header(AUTHORIZATION, format!("token {}", token.access_token()))
         .header(ACCEPT, "application/vnd.github.v3+json")
         .header(USER_AGENT, "rocket_oauth2 demo application")
-        .body(Body::empty())
-        .expect("build GET request");
-
-    let response = client.request(request).await.context("failed to send request to API")?;
-
-    if !response.status().is_success() {
-        return Err(anyhow::anyhow!(
-            "got non-success status {}",
-            response.status()
-        ))?;
-    }
-
-    let body = body::to_bytes(response.into_body()).await
-        .context("failed to read response body")?;
-
-    let user_info: GitHubUserInfo = serde_json::from_slice(&body)
+        .send()
+        .await
+        .context("failed to complete request")?
+        .json()
+        .await
         .context("failed to deserialize response")?;
 
     // Set a private cookie with the user's name, and redirect to the home page.
@@ -104,20 +88,17 @@ async fn google_callback(
     token: TokenResponse<GoogleUserInfo>,
     cookies: &CookieJar<'_>,
 ) -> Result<Redirect, Debug<Error>> {
-    let client = Client::builder().build(hyper_rustls::HttpsConnector::new());
-
     // Use the token to retrieve the user's Google account information.
-    let request = Request::get("https://people.googleapis.com/v1/people/me?personFields=names")
+    let user_info: GoogleUserInfo = reqwest::Client::builder()
+        .build()
+        .context("failed to build reqwest client")?
+        .get("https://people.googleapis.com/v1/people/me?personFields=names")
         .header(AUTHORIZATION, format!("Bearer {}", token.access_token()))
-        .body(Body::empty())
-        .expect("build GET request");
-
-    let response = client.request(request).await.context("failed to send request to API")?;
-
-    let body = body::to_bytes(response.into_body()).await
-        .context("failed to read response body")?;
-
-    let user_info: GoogleUserInfo = serde_json::from_slice(&body)
+        .send()
+        .await
+        .context("failed to complete request")?
+        .json()
+        .await
         .context("failed to deserialize response")?;
 
     let real_name = user_info
@@ -153,20 +134,17 @@ async fn microsoft_callback(
     token: TokenResponse<MicrosoftUserInfo>,
     cookies: &CookieJar<'_>,
 ) -> Result<Redirect, Debug<Error>> {
-    let client = Client::builder().build(hyper_rustls::HttpsConnector::new());
-
     // Use the token to retrieve the user's Microsoft account information.
-    let request = Request::get("https://graph.microsoft.com/v1.0/me")
+    let user_info: MicrosoftUserInfo = reqwest::Client::builder()
+        .build()
+        .context("failed to build reqwest client")?
+        .get("https://graph.microsoft.com/v1.0/me")
         .header(AUTHORIZATION, format!("Bearer {}", token.access_token()))
-        .body(Body::empty())
-        .expect("build GET request");
-
-    let response = client.request(request).await.context("failed to send request to API")?;
-
-    let body = body::to_bytes(response.into_body()).await
-        .context("failed to read response body")?;
-
-    let user_info: MicrosoftUserInfo = serde_json::from_slice(&body)
+        .send()
+        .await
+        .context("failed to complete request")?
+        .json()
+        .await
         .context("failed to deserialize response")?;
 
     // Set a private cookie with the user's name, and redirect to the home page.
