@@ -8,7 +8,6 @@ use rocket::fairing::{AdHoc, Fairing};
 use rocket::http::{Cookie, CookieJar, SameSite};
 use rocket::response::{Debug, Redirect};
 use rocket_oauth2::{OAuth2, TokenResponse};
-use serde_json;
 
 /// User information to be retrieved from the GitHub API.
 #[derive(serde::Deserialize)]
@@ -58,10 +57,7 @@ async fn post_install_callback(
         .context("failed to send request to API")?;
 
     if !response.status().is_success() {
-        return Err(anyhow::anyhow!(
-            "got non-success status {}",
-            response.status()
-        ))?;
+        return Err(anyhow::anyhow!("got non-success status {}", response.status()).into());
     }
 
     let body = body::to_bytes(response.into_body())

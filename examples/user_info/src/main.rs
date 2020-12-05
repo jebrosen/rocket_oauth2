@@ -152,7 +152,7 @@ async fn microsoft_callback(
 
     // Set a private cookie with the user's name, and redirect to the home page.
     cookies.add_private(
-        Cookie::build("username", user_info.display_name.to_string())
+        Cookie::build("username", user_info.display_name)
             .same_site(SameSite::Lax)
             .finish(),
     );
