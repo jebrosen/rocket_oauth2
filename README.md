@@ -1,5 +1,8 @@
 # rocket_oauth2
 
+[![crates.io](http://img.shields.io/crates/v/rocket_oauth2)](https://crates.io/crates/rocket_oauth2)
+[![docs.rs](https://docs.rs/rocket_oauth2/badge.svg)](https://docs.rs/rocket_oauth2/)
+
 `rocket_oauth2` helps set up OAuth 2.0 sign-in or authorization in
 [Rocket](https://rocket.rs) applications.
 
