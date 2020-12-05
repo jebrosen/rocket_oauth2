@@ -451,7 +451,10 @@ impl<'a, 'r, K: 'static> FromRequest<'a, 'r> for TokenResponse<K> {
         {
             // Verify that the given state is the same one in the cookie.
             // Begin a new scope so that cookies is not kept around too long.
-            let cookies = request.guard::<&CookieJar<'_>>().await.expect("request cookies");
+            let cookies = request
+                .guard::<&CookieJar<'_>>()
+                .await
+                .expect("request cookies");
             match cookies.get_private(STATE_COOKIE_NAME) {
                 Some(ref cookie) if cookie.value() == params.state => {
                     cookies.remove(cookie.clone());
@@ -608,7 +611,9 @@ impl<K: 'static> OAuth2<K> {
             _k: PhantomData,
         };
 
-        AdHoc::on_attach("OAuth Mount", |rocket| async { Ok(rocket.manage(Arc::new(shared))) })
+        AdHoc::on_attach("OAuth Mount", |rocket| async {
+            Ok(rocket.manage(Arc::new(shared)))
+        })
     }
 
     /// Prepare an authentication redirect. This sets a state cookie and returns

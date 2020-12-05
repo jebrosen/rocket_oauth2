@@ -2,9 +2,7 @@ use anyhow::{Context, Error};
 use hyper::{
     body,
     header::{ACCEPT, AUTHORIZATION, USER_AGENT},
-    Body,
-    Client,
-    Request,
+    Body, Client, Request,
 };
 use rocket::fairing::{AdHoc, Fairing};
 use rocket::http::{Cookie, CookieJar, SameSite};
@@ -54,7 +52,10 @@ async fn post_install_callback(
         .body(Body::empty())
         .expect("build GET request");
 
-    let response = client.request(request).await.context("failed to send request to API")?;
+    let response = client
+        .request(request)
+        .await
+        .context("failed to send request to API")?;
 
     if !response.status().is_success() {
         return Err(anyhow::anyhow!(
@@ -63,11 +64,12 @@ async fn post_install_callback(
         ))?;
     }
 
-    let body = body::to_bytes(response.into_body()).await
+    let body = body::to_bytes(response.into_body())
+        .await
         .context("failed to read response body")?;
 
-    let user_info: GitHubUserInfo = serde_json::from_slice(&body)
-        .context("failed to deserialize response")?;
+    let user_info: GitHubUserInfo =
+        serde_json::from_slice(&body).context("failed to deserialize response")?;
 
     // Set a private cookie with the user's name, and redirect to the home page.
     cookies.add_private(

@@ -14,7 +14,10 @@ impl<'a, 'r> FromRequest<'a, 'r> for User {
     type Error = ();
 
     async fn from_request(request: &'a Request<'r>) -> request::Outcome<User, ()> {
-        let cookies = request.guard::<&CookieJar<'_>>().await.expect("request cookies");
+        let cookies = request
+            .guard::<&CookieJar<'_>>()
+            .await
+            .expect("request cookies");
         if let Some(cookie) = cookies.get_private("username") {
             return request::Outcome::Success(User {
                 username: cookie.value().to_string(),

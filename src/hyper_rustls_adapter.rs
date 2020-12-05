@@ -63,7 +63,10 @@ impl HyperRustlsAdapter {
     /// }
     /// ```
     pub fn basic_auth(self, use_basic_auth: bool) -> Self {
-        Self { use_basic_auth, ..self }
+        Self {
+            use_basic_auth,
+            ..self
+        }
     }
 }
 
@@ -130,7 +133,6 @@ impl Adapter for HyperRustlsAdapter {
                     if let Some(redirect_uri) = config.redirect_uri() {
                         ser.append_pair("redirect_uri", redirect_uri);
                     }
-
                 }
                 TokenRequest::RefreshToken(token) => {
                     ser.append_pair("grant_type", "refresh_token");
@@ -139,7 +141,8 @@ impl Adapter for HyperRustlsAdapter {
             }
 
             if self.use_basic_auth {
-                let encoded = base64::encode(format!("{}:{}", config.client_id(), config.client_secret()));
+                let encoded =
+                    base64::encode(format!("{}:{}", config.client_id(), config.client_secret()));
                 request = request.header(AUTHORIZATION, format!("Basic {}", encoded))
             } else {
                 ser.append_pair("client_id", config.client_id());
@@ -169,7 +172,10 @@ impl Adapter for HyperRustlsAdapter {
         while let Some(chunk) = body.data().await {
             let chunk = chunk.map_err(|e| Error::new_from(ErrorKind::ExchangeFailure, e))?;
             if bytes.len() + chunk.len() > 2 * 1024 * 1024 {
-                return Err(Error::new_from(ErrorKind::ExchangeFailure, "Response body was too large."));
+                return Err(Error::new_from(
+                    ErrorKind::ExchangeFailure,
+                    "Response body was too large.",
+                ));
             }
             bytes.extend(chunk);
         }

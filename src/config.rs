@@ -1,7 +1,7 @@
 use std::borrow::Cow;
 use std::fmt;
 
-use rocket::figment::{self, Figment, Error};
+use rocket::figment::{self, Error, Figment};
 
 /// Holds configuration for an OAuth application. This consists of the [Provider]
 /// details, a `client_id` and `client_secret`, and an optional `redirect_uri`.
