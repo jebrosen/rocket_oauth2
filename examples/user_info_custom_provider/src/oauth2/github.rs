@@ -41,7 +41,7 @@ async fn post_install_callback(
     token: TokenResponse<GitHubUserInfo>,
     cookies: &CookieJar<'_>,
 ) -> Result<Redirect, Debug<Error>> {
-    let client = Client::builder().build(hyper_rustls::HttpsConnector::new());
+    let client = Client::builder().build(hyper_rustls::HttpsConnector::with_native_roots());
 
     // Use the token to retrieve the user's GitHub account information.
     let request = Request::get("https://api.github.com/user")

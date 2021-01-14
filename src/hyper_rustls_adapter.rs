@@ -30,7 +30,8 @@ impl Default for HyperRustlsAdapter {
     fn default() -> Self {
         Self {
             use_basic_auth: true,
-            client: Client::builder().build(hyper_rustls::HttpsConnector::new()),
+            // TODO: consider making the root store configurable
+            client: Client::builder().build(hyper_rustls::HttpsConnector::with_native_roots()),
         }
     }
 }
