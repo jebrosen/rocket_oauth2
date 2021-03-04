@@ -148,9 +148,10 @@ use std::sync::Arc;
 
 use log::{error, warn};
 use rocket::fairing::{AdHoc, Fairing};
+use rocket::form::{Form, FromForm};
 use rocket::http::uri::Absolute;
 use rocket::http::{Cookie, CookieJar, SameSite, Status};
-use rocket::request::{self, FormItems, FromForm, FromRequest, Outcome, Request};
+use rocket::request::{self, FromRequest, Outcome, Request};
 use rocket::response::Redirect;
 use serde_json::Value;
 
@@ -429,6 +430,19 @@ impl<'a, 'r, K: 'static> FromRequest<'a, 'r> for TokenResponse<K> {
             }
         };
 
+        let query = match query.url_decode() {
+            Ok(query) => query,
+            Err(_) => {
+                return Outcome::Failure((
+                    Status::BadRequest,
+                    Error::new_from(
+                        ErrorKind::ExchangeFailure,
+                        "Query string contains invalid escape sequences",
+                    ),
+                ))
+            }
+        };
+
         #[derive(FromForm)]
         struct CallbackQuery {
             code: String,
@@ -437,7 +451,7 @@ impl<'a, 'r, K: 'static> FromRequest<'a, 'r> for TokenResponse<K> {
             scope: Option<String>,
         }
 
-        let params = match CallbackQuery::from_form(&mut FormItems::from(query), false) {
+        let params = match Form::<CallbackQuery>::parse(&query) {
             Ok(p) => p,
             Err(e) => {
                 warn!("Failed to parse OAuth2 query string: {:?}", e);
