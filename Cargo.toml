@@ -18,7 +18,7 @@ default = ["hyper_rustls_adapter"]
 hyper_rustls_adapter = ["hyper", "hyper-rustls"]
 
 [dependencies]
-async-trait = "0.1.30"
+async-trait = "0.1.43"
 base64 = "0.13"
 log = "0.4.4"
 rand = { version = "0.7", default-features = false, features = ["std"] }
