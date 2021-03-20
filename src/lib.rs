@@ -404,14 +404,14 @@ impl std::convert::TryFrom<Value> for TokenResponse<()> {
 }
 
 #[rocket::async_trait]
-impl<'a, 'r, K: 'static> FromRequest<'a, 'r> for TokenResponse<K> {
+impl<'r, K: 'static> FromRequest<'r> for TokenResponse<K> {
     type Error = Error;
 
     // TODO: Decide if BadRequest is the appropriate error code.
     // TODO: What do providers do if they *reject* the authorization?
     /// Handle the redirect callback, delegating to the Adapter to perform the
     /// token exchange.
-    async fn from_request(request: &'a Request<'r>) -> request::Outcome<Self, Self::Error> {
+    async fn from_request(request: &'r Request<'_>) -> request::Outcome<Self, Self::Error> {
         let oauth2 = request
             .managed_state::<Arc<Shared<K>>>()
             .expect("OAuth2 fairing was not attached for this key type!");
@@ -712,10 +712,10 @@ impl<K: 'static> OAuth2<K> {
 }
 
 #[rocket::async_trait]
-impl<'a, 'r, K: 'static> FromRequest<'a, 'r> for OAuth2<K> {
+impl<'r, K: 'static> FromRequest<'r> for OAuth2<K> {
     type Error = ();
 
-    async fn from_request(request: &'a Request<'r>) -> request::Outcome<Self, Self::Error> {
+    async fn from_request(request: &'r Request<'_>) -> request::Outcome<Self, Self::Error> {
         Outcome::Success(OAuth2(
             request
                 .managed_state::<Arc<Shared<K>>>()
