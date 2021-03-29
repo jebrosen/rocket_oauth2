@@ -413,7 +413,8 @@ impl<'r, K: 'static> FromRequest<'r> for TokenResponse<K> {
     /// token exchange.
     async fn from_request(request: &'r Request<'_>) -> request::Outcome<Self, Self::Error> {
         let oauth2 = request
-            .managed_state::<Arc<Shared<K>>>()
+            .rocket()
+            .state::<Arc<Shared<K>>>()
             .expect("OAuth2 fairing was not attached for this key type!");
 
         // Parse the query data.
@@ -718,7 +719,8 @@ impl<'r, K: 'static> FromRequest<'r> for OAuth2<K> {
     async fn from_request(request: &'r Request<'_>) -> request::Outcome<Self, Self::Error> {
         Outcome::Success(OAuth2(
             request
-                .managed_state::<Arc<Shared<K>>>()
+                .rocket()
+                .state::<Arc<Shared<K>>>()
                 .expect("OAuth2 fairing was not attached for this key type!")
                 .clone(),
         ))
