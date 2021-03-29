@@ -12,10 +12,10 @@ struct User {
 }
 
 #[rocket::async_trait]
-impl<'a, 'r> request::FromRequest<'a, 'r> for User {
+impl<'r> request::FromRequest<'r> for User {
     type Error = ();
 
-    async fn from_request(request: &'a request::Request<'r>) -> request::Outcome<User, ()> {
+    async fn from_request(request: &'r request::Request<'_>) -> request::Outcome<User, ()> {
         let cookies = request
             .guard::<&CookieJar<'_>>()
             .await
