@@ -95,7 +95,7 @@
 //!
 //! #[rocket::launch]
 //! fn rocket() -> _ {
-//!     rocket::ignite()
+//!     rocket::build()
 //!         .mount("/", routes![github_callback, github_login])
 //!         // The string "github" here matches [default.oauth.github] in `Rocket.toml`
 //!         .attach(OAuth2::<GitHub>::fairing("github"))
@@ -153,6 +153,7 @@ use rocket::http::uri::Absolute;
 use rocket::http::{Cookie, CookieJar, SameSite, Status};
 use rocket::request::{self, FromRequest, Outcome, Request};
 use rocket::response::Redirect;
+use rocket::{Build, Rocket};
 use serde_json::Value;
 
 const STATE_COOKIE_NAME: &str = "rocket_oauth2_state";
@@ -557,15 +558,12 @@ impl<K: 'static> OAuth2<K> {
     ///
     /// #[rocket::launch]
     /// fn rocket() -> _ {
-    ///     rocket::ignite().attach(OAuth2::<GitHub>::fairing("github"))
+    ///     rocket::build().attach(OAuth2::<GitHub>::fairing("github"))
     /// }
     #[cfg(feature = "hyper_rustls_adapter")]
-    pub fn fairing(config_name: &str) -> impl Fairing {
-        // Unfortunate allocations, but necessary because on_attach requires 'static
-        let config_name = config_name.to_string();
-
-        AdHoc::on_attach("OAuth Init", |rocket| async move {
-            let config = match OAuthConfig::from_figment(rocket.figment(), &config_name) {
+    pub fn fairing(config_name: impl AsRef<str> + Send + 'static) -> impl Fairing {
+        AdHoc::try_on_ignite("rocket_oauth2::fairing", |rocket| async move {
+            let config = match OAuthConfig::from_figment(rocket.figment(), config_name.as_ref()) {
                 Ok(c) => c,
                 Err(e) => {
                     log::error!("Invalid configuration: {:?}", e);
@@ -573,11 +571,16 @@ impl<K: 'static> OAuth2<K> {
                 }
             };
 
-            Ok(rocket.attach(Self::custom(
-                hyper_rustls_adapter::HyperRustlsAdapter::default(),
-                config,
-            )))
+            Ok(Self::_init(rocket, hyper_rustls_adapter::HyperRustlsAdapter::default(), config))
         })
+    }
+
+    fn _init<A: Adapter>(rocket: Rocket<Build>, adapter: A, config: OAuthConfig) -> Rocket<Build> {
+        rocket.manage(Arc::new(Shared::<K> {
+            adapter: Box::new(adapter),
+            config,
+            _k: PhantomData,
+        }))
     }
 
     /// Create an OAuth2 fairing with a custom adapter and configuration.
@@ -592,8 +595,8 @@ impl<K: 'static> OAuth2<K> {
     ///
     /// #[rocket::launch]
     /// fn rocket() -> _ {
-    ///     rocket::ignite()
-    ///         .attach(AdHoc::on_attach("OAuth Config", |rocket| async {
+    ///     rocket::build()
+    ///         .attach(AdHoc::on_ignite("OAuth Config", |rocket| async {
     ///             let config = OAuthConfig::new(
     ///                 StaticProvider {
     ///                     auth_uri: "auth uri".into(),
@@ -603,18 +606,12 @@ impl<K: 'static> OAuth2<K> {
     ///                 "client secret".to_string(),
     ///                 Some("http://localhost:8000/auth".to_string()),
     ///             );
-    ///             Ok(rocket.attach(OAuth2::<MyProvider>::custom(HyperRustlsAdapter::default(), config)))
+    ///             rocket.attach(OAuth2::<MyProvider>::custom(HyperRustlsAdapter::default(), config))
     ///         }))
     /// }
     pub fn custom<A: Adapter>(adapter: A, config: OAuthConfig) -> impl Fairing {
-        let shared = Shared::<K> {
-            adapter: Box::new(adapter),
-            config,
-            _k: PhantomData,
-        };
-
-        AdHoc::on_attach("OAuth Mount", |rocket| async {
-            Ok(rocket.manage(Arc::new(shared)))
+        AdHoc::on_ignite("rocket_oauth2::custom", |rocket| async {
+            Self::_init(rocket, adapter, config)
         })
     }
 

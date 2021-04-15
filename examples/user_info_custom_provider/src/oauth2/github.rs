@@ -22,10 +22,10 @@ struct GitHubUserInfo {
 /// config_name which must match the key used in Rocket.toml
 /// to specify the custom provider attributes.
 pub fn fairing() -> impl Fairing {
-    AdHoc::on_attach("Github OAuth2", |rocket| async {
-        Ok(rocket
+    AdHoc::on_ignite("Github OAuth2", |rocket| async {
+        rocket
             .mount("/", rocket::routes![github_login, post_install_callback])
-            .attach(OAuth2::<GitHubUserInfo>::fairing("github")))
+            .attach(OAuth2::<GitHubUserInfo>::fairing("github"))
     })
 }
 

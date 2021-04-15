@@ -63,11 +63,11 @@ impl OAuthConfig {
     /// struct GitHub;
     ///
     /// #[rocket::launch]
-    /// fn rocket() -> rocket::Rocket {
-    ///     rocket::ignite()
-    ///         .attach(AdHoc::on_attach("OAuth Config", |mut rocket| async {
+    /// fn rocket() -> _ {
+    ///     rocket::build()
+    ///         .attach(AdHoc::on_ignite("OAuth Config", |mut rocket| async {
     ///             let config = OAuthConfig::from_figment(rocket.figment(), "github").unwrap();
-    ///             Ok(rocket.attach(OAuth2::<GitHub>::custom(HyperRustlsAdapter::default(), config)))
+    ///             rocket.attach(OAuth2::<GitHub>::custom(HyperRustlsAdapter::default(), config))
     ///         }))
     /// }
     /// ```

@@ -54,12 +54,12 @@ impl HyperRustlsAdapter {
     ///
     /// #[rocket::launch]
     /// fn rocket() -> _ {
-    ///     rocket::ignite()
-    ///         .attach(AdHoc::on_attach("OAuth Config", |mut rocket| async {
+    ///     rocket::build()
+    ///         .attach(AdHoc::on_ignite("OAuth Config", |mut rocket| async {
     ///             let config = OAuthConfig::from_figment(rocket.figment(), "my_provider").unwrap();
-    ///             Ok(rocket.attach(OAuth2::<MyProvider>::custom(
+    ///             rocket.attach(OAuth2::<MyProvider>::custom(
     ///                 HyperRustlsAdapter::default().basic_auth(false), config)
-    ///             ))
+    ///             )
     ///         }))
     /// }
     /// ```

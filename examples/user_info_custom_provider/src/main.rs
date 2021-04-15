@@ -46,7 +46,7 @@ fn logout(cookies: &CookieJar<'_>) -> Redirect {
 
 #[rocket::launch]
 fn rocket() -> _ {
-    rocket::ignite()
+    rocket::build()
         .mount("/", routes![index, index_anonymous, logout])
         .attach(oauth2::github::fairing())
 }
