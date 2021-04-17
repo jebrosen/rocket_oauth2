@@ -146,14 +146,14 @@ use std::fmt;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
-use log::{error, warn};
+use log::{error, info, warn};
 use rocket::fairing::{AdHoc, Fairing};
 use rocket::form::{Form, FromForm};
 use rocket::http::uri::Absolute;
 use rocket::http::{Cookie, CookieJar, SameSite, Status};
 use rocket::request::{self, FromRequest, Outcome, Request};
 use rocket::response::Redirect;
-use rocket::{Build, Rocket};
+use rocket::{Build, Ignite, Rocket, Sentinel};
 use serde_json::Value;
 
 const STATE_COOKIE_NAME: &str = "rocket_oauth2_state";
@@ -508,6 +508,24 @@ impl<'r, K: 'static> FromRequest<'r> for TokenResponse<K> {
     }
 }
 
+// TODO: Warn only once per 'K'. (but where to store that state?)
+fn sentinel_abort<K: 'static>(rocket: &Rocket<Ignite>, wrapper: &str) -> bool {
+    if rocket.state::<Arc<Shared<K>>>().is_some() {
+        return false;
+    }
+
+    let type_name = std::any::type_name::<K>();
+    error!("{}<{}> was used in a mounted route without attaching a matching fairing", wrapper, type_name);
+    info!("attach either OAuth2::<{0}>::fairing() or OAuth2::<{0}>::custom()", type_name);
+    true
+}
+
+impl<K: 'static> Sentinel for TokenResponse<K> {
+    fn abort(rocket: &Rocket<Ignite>) -> bool {
+        sentinel_abort::<K>(rocket, "TokenResponse")
+    }
+}
+
 /// An OAuth2 `Adapater` can be implemented by any type that facilitates the
 /// Authorization Code Grant as described in RFC 6749 §4.1. The implementing
 /// type must be able to generate an authorization URI and perform the token
@@ -721,6 +739,12 @@ impl<'r, K: 'static> FromRequest<'r> for OAuth2<K> {
                 .expect("OAuth2 fairing was not attached for this key type!")
                 .clone(),
         ))
+    }
+}
+
+impl<K: 'static> Sentinel for OAuth2<K> {
+    fn abort(rocket: &Rocket<Ignite>) -> bool {
+        sentinel_abort::<K>(rocket, "OAuth2")
     }
 }
 
