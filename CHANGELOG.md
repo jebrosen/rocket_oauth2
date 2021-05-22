@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## 0.5.0 - Unreleased
 ### Changed
 - Updated the `rocket` dependency to 0.5
-  - Refactored `rocket_oauth2` to support `async`
+  - Refactored `rocket_oauth2` to support `async` and other changes in 0.5
     - Changed `Adapter` and impls to use `#[async_trait]`
     - Made `Adapter::exchange_code` and `OAuth2::refresh` into `async fn`s
   - Replaced `OAuth2Config::from_config` with `OAuth2Config::from_figment`
@@ -17,10 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 - Removed support for specifying `provider` as a table with `auth_uri`
-  and `token_uri` values.
+  and `token_uri` values. These values are no longer nested under `provider`.
 
 ### Migration Guide
-* If you specified `provider` as a table including `auth_uri` and `token_uri`,
+* If you specified `provider` as a table with `auth_uri` and `token_uri`,
   remove the intermediate `provider` table and move `auth_uri` and `token_uri`
   to the level `provider` was at.
 * Change references to `hyper_sync_rustls_adapter` to `hyper_rustls_adapter`,

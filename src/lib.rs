@@ -1,7 +1,7 @@
 //! # rocket_oauth2
 //!
-//! OAuth2 ([RFC 6749](https://tools.ietf.org/html/rfc6749)) for
-//! [Rocket](https://rocket.rs) applications.
+//! OAuth2 ([RFC 6749](https://tools.ietf.org/html/rfc6749)) client
+//! implementation for [Rocket](https://rocket.rs) applications.
 //!
 //! ## Requirements
 //!
@@ -93,7 +93,7 @@
 //!     Redirect::to("/")
 //! }
 //!
-//! #[rocket::launch]
+//! #[launch]
 //! fn rocket() -> _ {
 //!     rocket::build()
 //!         .mount("/", routes![github_callback, github_login])
@@ -117,12 +117,12 @@
 //! redirect_uri = "http://localhost:8000/auth/github"
 //! ```
 //!
-//! The provider can also be specified as a table with `auth_uri` and
-//! `token_uri` values:
+//! The provider can also be specified with `auth_uri` and `token_uri` values:
 //!
 //! ```toml
 //! [default.oauth.custom]
-//! provider = { auth_uri = "https://example.com/oauth/authorize", token_uri = "https://example.com/oauth/token" }
+//! auth_uri = "https://example.com/oauth/authorize"
+//! token_uri = "https://example.com/oauth/token"
 //! client_id = "..."
 //! client_secret = "..."
 //! redirect_uri = "http://localhost:8000/auth/custom"

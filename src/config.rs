@@ -97,7 +97,7 @@ impl OAuthConfig {
                 token_uri: token_uri.into(),
             },
             _ => {
-                return Err("either 'provider' or both 'auth_uri' and 'token_uri' should be specified, but not both".to_string().into());
+                return Err("either 'provider' or 'auth_uri'+'token_uri' should be specified, but not both".to_string().into());
             }
         };
 

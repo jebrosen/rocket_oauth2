@@ -3,8 +3,8 @@
 [![crates.io](http://img.shields.io/crates/v/rocket_oauth2)](https://crates.io/crates/rocket_oauth2)
 [![docs.rs](https://docs.rs/rocket_oauth2/badge.svg)](https://docs.rs/rocket_oauth2/)
 
-`rocket_oauth2` helps set up OAuth 2.0 sign-in or authorization in
-[Rocket](https://rocket.rs) applications.
+`rocket_oauth2` helps set up an OAuth 2.0 client in [Rocket](https://rocket.rs)
+applications.
 
 ## Quickstart Example
 
@@ -14,7 +14,7 @@ projects in the repository's `examples` directory.
 ### Code
 
 ```rust
-use rocket::http::{Cookie, Cookies, SameSite};
+use rocket::http::{Cookie, CookieJar, SameSite};
 use rocket::Request;
 use rocket::response::Redirect;
 use rocket_oauth2::{OAuth2, TokenResponse};
@@ -22,12 +22,12 @@ use rocket_oauth2::{OAuth2, TokenResponse};
 struct GitHub;
 
 #[get("/login/github")]
-fn github_login(oauth2: OAuth2<GitHub>, mut cookies: Cookies<'_>) -> Redirect {
-    oauth2.get_redirect(&mut cookies, &["user:read"]).unwrap()
+fn github_login(oauth2: OAuth2<GitHub>, cookies: &CookieJar<'_>) -> Redirect {
+    oauth2.get_redirect(cookies, &["user:read"]).unwrap()
 }
 
 #[get("/auth/github")]
-fn github_callback(token: TokenResponse<GitHub>, mut cookies: Cookies<'_>) -> Redirect
+fn github_callback(token: TokenResponse<GitHub>, cookies: &CookieJar<'_>) -> Redirect
 {
     cookies.add_private(
         Cookie::build("token", token.access_token().to_string())
@@ -37,11 +37,11 @@ fn github_callback(token: TokenResponse<GitHub>, mut cookies: Cookies<'_>) -> Re
     Redirect::to("/")
 }
 
-fn main() {
-    rocket::ignite()
+#[launch]
+fn rocket() -> _ {
+    rocket::build()
         .mount("/", routes![github_callback, github_login])
         .attach(OAuth2::<GitHub>::fairing("github"))
-        .launch();
 }
 ```
 
