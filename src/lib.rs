@@ -440,7 +440,7 @@ impl<'r, K: 'static> FromRequest<'r> for TokenResponse<K> {
             scope: Option<String>,
         }
 
-        let params = match Form::<CallbackQuery>::parse_encoded(query) {
+        let params = match Form::<CallbackQuery>::parse_encoded(&query) {
             Ok(p) => p,
             Err(e) => {
                 warn!("Failed to parse OAuth2 query string: {:?}", e);
