@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Refactored `rocket_oauth2` to support `async` and other changes in 0.5
     - Changed `Adapter` and impls to use `#[async_trait]`
     - Made `Adapter::exchange_code` and `OAuth2::refresh` into `async fn`s
-  - Replaced `OAuth2Config::from_config` with `OAuth2Config::from_figment`
+  - Replaced `OAuthConfig::from_config` with `OAuthConfig::from_figment`
   - Replaced `HyperSyncRustlsAdapter` with `HyperRustlsAdapter`; the feature
     flag has also been replaced with `hyper_rustls_adapter`
 - Rewrote the primary example with `reqwest` and renamed it to `user_info`
@@ -25,7 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   to the level `provider` was at.
 * Change references to `hyper_sync_rustls_adapter` to `hyper_rustls_adapter`,
   and `HyperSyncRustlsAdapter` with `HyperRustlsAdapter`.
-* Change calls to `OAuth2Config::from_config` to `OAuth2Config::from_figment`.
+* Change calls to `OAuthConfig::from_config` to `OAuthConfig::from_figment`.
 * Add `#[async_trait::async_trait]` to `Adapter` implementations, and change
   `exchange_code` to an `async fn` using an `async` HTTP client or a
   synchronous HTTP client wrapped in a `spawn_blocking` call.
