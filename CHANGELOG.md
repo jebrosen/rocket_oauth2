@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Replaced `OAuthConfig::from_config` with `OAuthConfig::from_figment`
   - Replaced `HyperSyncRustlsAdapter` with `HyperRustlsAdapter`; the feature
     flag has also been replaced with `hyper_rustls_adapter`
+  - Implemented `Sentinel` on request guards, so misconfiguration will be
+    detected earlier at runtime.
 - Rewrote the primary example with `reqwest` and renamed it to `user_info`
 
 ### Removed
