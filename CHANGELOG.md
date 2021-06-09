@@ -6,7 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 0.5.0-rc.1 - 2021-06-09
 ### Changed
-- Updated the `rocket` dependency to 0.5-rc.1
+- Updated the `rocket` dependency to `0.5.0-rc.1`
   - Refactored `rocket_oauth2` to support `async` and other changes in 0.5
     - Changed `Adapter` and impls to use `#[async_trait]`
     - Made `Adapter::exchange_code` and `OAuth2::refresh` into `async fn`s
