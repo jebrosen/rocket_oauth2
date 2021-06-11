@@ -80,33 +80,35 @@ impl Adapter for HyperRustlsAdapter {
         scopes: &[&str],
         extra_params: &[(&str, &str)],
     ) -> Result<Absolute<'static>, Error> {
+        use crate::query::param;
+
         let auth_uri = config.provider().auth_uri();
 
         let mut url = Url::parse(&auth_uri)
             .map_err(|e| Error::new_from(ErrorKind::InvalidUri(auth_uri.to_string()), e))?;
 
         url.query_pairs_mut()
-            .append_pair("response_type", "code")
-            .append_pair("client_id", config.client_id())
-            .append_pair("state", state);
+            .append_pair(param::RESPONSE_TYPE, param::response_type::CODE)
+            .append_pair(param::CLIENT_ID, config.client_id())
+            .append_pair(param::STATE, state);
 
         if let Some(redirect_uri) = config.redirect_uri() {
             url.query_pairs_mut()
-                .append_pair("redirect_uri", redirect_uri);
+                .append_pair(param::REDIRECT_URI, redirect_uri);
         }
 
         if !scopes.is_empty() {
             url.query_pairs_mut()
-                .append_pair("scope", &scopes.join(" "));
+                .append_pair(param::SCOPE, &scopes.join(" "));
         }
 
         // Request parameters must not be included more than once. This
         // adapter chooses to ignore duplicates instead of overwriting.
         for (name, value) in extra_params {
             match *name {
-                "response_type" | "client_id" | "state" => continue,
-                "redirect_uri" if config.redirect_uri().is_some() => continue,
-                "scope" if !scopes.is_empty() => continue,
+                param::RESPONSE_TYPE | param::CLIENT_ID | param::STATE => continue,
+                param::REDIRECT_URI if config.redirect_uri().is_some() => continue,
+                param::SCOPE if !scopes.is_empty() => continue,
                 _ => url.query_pairs_mut().append_pair(name, value),
             };
         }
@@ -121,23 +123,25 @@ impl Adapter for HyperRustlsAdapter {
         config: &OAuthConfig,
         token: TokenRequest,
     ) -> Result<TokenResponse<()>, Error> {
+        use crate::query::{header, param};
+
         let mut request = Request::post(&*config.provider().token_uri())
-            .header(ACCEPT, "application/json")
-            .header(CONTENT_TYPE, "application/x-www-form-urlencoded");
+            .header(ACCEPT, header::APPLICATION_JSON)
+            .header(CONTENT_TYPE, header::X_WWW_FORM_URLENCODED);
 
         let req_str = {
             let mut ser = UrlSerializer::new(String::new());
             match token {
                 TokenRequest::AuthorizationCode(code) => {
-                    ser.append_pair("grant_type", "authorization_code");
-                    ser.append_pair("code", &code);
+                    ser.append_pair(param::GRANT_TYPE, param::grant_type::AUTHORIZATION_CODE);
+                    ser.append_pair(param::CODE, &code);
                     if let Some(redirect_uri) = config.redirect_uri() {
-                        ser.append_pair("redirect_uri", redirect_uri);
+                        ser.append_pair(param::REDIRECT_URI, redirect_uri);
                     }
                 }
                 TokenRequest::RefreshToken(token) => {
-                    ser.append_pair("grant_type", "refresh_token");
-                    ser.append_pair("refresh_token", &token);
+                    ser.append_pair(param::GRANT_TYPE, param::grant_type::REFRESH_TOKEN);
+                    ser.append_pair(param::REFRESH_TOKEN, &token);
                 }
             }
 
@@ -146,8 +150,8 @@ impl Adapter for HyperRustlsAdapter {
                     base64::encode(format!("{}:{}", config.client_id(), config.client_secret()));
                 request = request.header(AUTHORIZATION, format!("Basic {}", encoded))
             } else {
-                ser.append_pair("client_id", config.client_id());
-                ser.append_pair("client_secret", config.client_secret());
+                ser.append_pair(param::CLIENT_ID, config.client_id());
+                ser.append_pair(param::CLIENT_SECRET, config.client_secret());
             }
 
             ser.finish()
