@@ -133,6 +133,7 @@
 
 mod config;
 mod error;
+pub mod query;
 
 #[cfg(feature = "hyper_rustls_adapter")]
 mod hyper_rustls_adapter;
