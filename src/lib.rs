@@ -10,7 +10,7 @@
 //! ## API Stability
 //!
 //! `rocket_oauth2` is still in its early stages and the API is subject to heavy
-//! change in the future. semver is respsected, but only the latest release will
+//! change in the future. semver is respected, but only the latest release will
 //! be actively maintained.
 //!
 //! ## Features
