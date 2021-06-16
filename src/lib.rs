@@ -136,6 +136,9 @@
 #![warn(future_incompatible, nonstandard_style, missing_docs)]
 #![allow(clippy::needless_doctest_main)] // used intentionally for illustrative purposes
 
+#[macro_use]
+extern crate rocket;
+
 mod config;
 mod error;
 
