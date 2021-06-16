@@ -58,7 +58,7 @@
 //! # #![feature(proc_macro_hygiene, decl_macro)]
 //! # #[macro_use] extern crate rocket;
 //! # extern crate rocket_oauth2;
-//! # use rocket::http::{Cookie, Cookies, SameSite};
+//! # use rocket::http::{Cookie, CookieJar, SameSite};
 //! # use rocket::Request;
 //! # use rocket::response::Redirect;
 //! use rocket_oauth2::{OAuth2, TokenResponse};
@@ -71,26 +71,26 @@
 //! // This route calls `get_redirect`, which sets up a token request and
 //! // returns a `Redirect` to the authorization endpoint.
 //! #[get("/login/github")]
-//! fn github_login(oauth2: OAuth2<GitHub>, mut cookies: Cookies<'_>) -> Redirect {
+//! fn github_login(oauth2: OAuth2<GitHub>, mut jar: &CookieJar<'_>) -> Redirect {
 //!     // We want the "user:read" scope. For some providers, scopes may be
 //!     // pre-selected or restricted during application registration. We could
 //!     // use `&[]` instead to not request any scopes, but usually scopes
 //!     // should be requested during registation, in the redirect, or both.
-//!     oauth2.get_redirect(&mut cookies, &["user:read"]).unwrap()
+//!     oauth2.get_redirect(&mut jar, &["user:read"]).unwrap()
 //! }
 //!
 //! // This route, mounted at the application's Redirect URI, uses the
 //! // `TokenResponse` request guard to complete the token exchange and obtain
 //! // the token.
 //! //
-//! // The order is important here! If Cookies is positioned before
+//! // The order is important here! If CookieJar is positioned before
 //! // TokenResponse, TokenResponse will be unable to verify the token exchange
 //! // and return a failure.
 //! #[get("/auth/github")]
-//! fn github_callback(token: TokenResponse<GitHub>, mut cookies: Cookies<'_>) -> Redirect
+//! fn github_callback(token: TokenResponse<GitHub>, mut jar: &CookieJar<'_>) -> Redirect
 //! {
 //!     // Set a private cookie with the access token
-//!     cookies.add_private(
+//!     jar.add_private(
 //!         Cookie::build("token", token.access_token().to_string())
 //!             .same_site(SameSite::Lax)
 //!             .finish()
@@ -154,10 +154,10 @@ use std::sync::Arc;
 use log::{error, warn};
 use rocket::fairing::{AdHoc, Fairing};
 use rocket::http::uri::Absolute;
-use rocket::http::{Cookie, Cookies, SameSite, Status};
-use rocket::request::{self, FormItems, FromForm, FromRequest, Request};
+use rocket::http::{Cookie, CookieJar, SameSite, Status};
+use rocket::request::{self, FormItems, FromForm, FromRequest, Outcome, Request};
 use rocket::response::Redirect;
-use rocket::{Outcome, State};
+use rocket::State;
 use serde_json::Value;
 
 const STATE_COOKIE_NAME: &str = "rocket_oauth2_state";
@@ -189,7 +189,7 @@ pub enum TokenRequest {
 ///
 /// `TokenResponse<K>` implements `FromRequest`, and is used in the callback
 /// route to complete the token exchange. Since `TokenResponse` accesses
-/// [`Cookies`], it must be positioned *before* `Cookies` in routes.
+/// [`CookieJar`], it must be positioned *before* `CookieJar` in routes.
 /// For more information, see [the rocket.rs guide].
 ///
 /// # Example
@@ -197,15 +197,15 @@ pub enum TokenRequest {
 /// ```rust
 /// # #![feature(proc_macro_hygiene, decl_macro)]
 /// # #[macro_use] extern crate rocket;
-/// # use rocket::http::Cookies;
+/// # use rocket::http::CookieJar;
 /// # use rocket::response::Redirect;
 /// # struct Auth;
 /// use rocket_oauth2::TokenResponse;
 ///
 /// // Bad! This will fail at runtime:
-/// // "Error: Multiple `Cookies` instances are active at once."
+/// // "Error: Multiple `CookieJar` instances are active at once."
 /// #[get("/auth")]
-/// fn auth_callback(mut cookies: Cookies<'_>, token: TokenResponse<Auth>) -> Redirect {
+/// fn auth_callback(mut jar: &CookieJar<'_>, token: TokenResponse<Auth>) -> Redirect {
 ///      // ...
 /// #    Redirect::to("/")
 /// }
@@ -214,21 +214,21 @@ pub enum TokenRequest {
 /// ```rust
 /// # #![feature(proc_macro_hygiene, decl_macro)]
 /// # #[macro_use] extern crate rocket;
-/// # use rocket::http::Cookies;
+/// # use rocket::http::CookieJar;
 /// # use rocket::response::Redirect;
 /// # struct Auth;
 /// use rocket_oauth2::TokenResponse;
 ///
-/// // Good. TokenResponse will access and then release Cookies,
-/// // and then both TokenResponse and Cookies will be given to the route.
+/// // Good. TokenResponse will access and then release CookieJar,
+/// // and then both TokenResponse and CookieJar will be given to the route.
 /// #[get("/auth")]
-/// fn auth_callback(token: TokenResponse<Auth>, mut cookies: Cookies<'_>) -> Redirect {
+/// fn auth_callback(token: TokenResponse<Auth>, mut jar: &CookieJar<'_>) -> Redirect {
 ///      // ...
 /// #    Redirect::to("/")
 /// }
 /// ```
 ///
-/// [`Cookies`]: https://api.rocket.rs/v0.4/rocket/http/enum.Cookies.html
+/// [`CookieJar`]: https://api.rocket.rs/v0.4/rocket/http/enum.CookieJar.html
 /// [the rocket.rs guide]: https://rocket.rs/v0.4/guide/requests/#one-at-a-time
 #[derive(Clone, PartialEq, Debug)]
 pub struct TokenResponse<K> {
@@ -490,18 +490,21 @@ impl<'r, K: 'static> FromRequest<'r> for TokenResponse<K> {
 
         {
             // Verify that the given state is the same one in the cookie.
-            // Begin a new scope so that cookies is not kept around too long.
-            let mut cookies = request.guard::<Cookies<'_>>().expect("request cookies");
-            match cookies.get_private(STATE_COOKIE_NAME) {
+            // Begin a new scope so that jar is not kept around too long.
+            let mut jar = request
+                .guard::<&CookieJar<'_>>()
+                .await
+                .expect("request cookies");
+            match jar.get_private(STATE_COOKIE_NAME) {
                 Some(ref cookie) if cookie.value() == params.state => {
-                    cookies.remove(cookie.clone());
+                    jar.remove(cookie.clone());
                 }
                 other => {
                     if other.is_some() {
                         warn!("The OAuth2 state returned from the server did not match the stored state.");
                     } else {
                         error!("The OAuth2 state cookie was missing. It may have been blocked by the client, \
-                                or perhaps a `Cookies` guard is already active?");
+                                or perhaps a `CookieJar` guard is already active?");
                     }
 
                     return Outcome::Failure((
@@ -658,23 +661,23 @@ impl<K: 'static> OAuth2<K> {
     ///
     /// ```rust
     /// # #![feature(decl_macro)]
-    /// use rocket::http::Cookies;
+    /// use rocket::http::CookieJar;
     /// use rocket::response::Redirect;
     /// use rocket_oauth2::OAuth2;
     ///
     /// struct GitHub;
     ///
     /// #[rocket::get("/login/github")]
-    /// fn github_login(oauth2: OAuth2<GitHub>, mut cookies: Cookies<'_>) -> Redirect {
-    ///     oauth2.get_redirect(&mut cookies, &["user:read"]).unwrap()
+    /// fn github_login(oauth2: OAuth2<GitHub>, mut jar: &CookieJar<'_>) -> Redirect {
+    ///     oauth2.get_redirect(&mut jar, &["user:read"]).unwrap()
     /// }
     /// ```
     pub fn get_redirect(
         &self,
-        cookies: &mut Cookies<'_>,
+        jar: &mut &CookieJar<'_>,
         scopes: &[&str],
     ) -> Result<Redirect, Error> {
-        self.get_redirect_extras(cookies, scopes, &[])
+        self.get_redirect_extras(jar, scopes, &[])
     }
 
     /// Prepare an authentication redirect. This sets a state cookie and returns
@@ -688,20 +691,20 @@ impl<K: 'static> OAuth2<K> {
     ///
     /// ```rust
     /// # #![feature(decl_macro)]
-    /// use rocket::http::Cookies;
+    /// use rocket::http::CookieJar;
     /// use rocket::response::Redirect;
     /// use rocket_oauth2::OAuth2;
     ///
     /// struct Reddit;
     ///
     /// #[rocket::get("/login/reddit")]
-    /// fn reddit_login(oauth2: OAuth2<Reddit>, mut cookies: Cookies<'_>) -> Redirect {
-    ///     oauth2.get_redirect_extras(&mut cookies, &["identity"], &[("duration", "permanent")]).unwrap()
+    /// fn reddit_login(oauth2: OAuth2<Reddit>, mut jar: &CookieJar<'_>) -> Redirect {
+    ///     oauth2.get_redirect_extras(&mut jar, &["identity"], &[("duration", "permanent")]).unwrap()
     /// }
     /// ```
     pub fn get_redirect_extras(
         &self,
-        cookies: &mut Cookies<'_>,
+        jar: &mut &CookieJar<'_>,
         scopes: &[&str],
         extras: &[(&str, &str)],
     ) -> Result<Redirect, Error> {
@@ -710,7 +713,7 @@ impl<K: 'static> OAuth2<K> {
             .0
             .adapter
             .authorization_uri(&self.0.config, &state, scopes, extras)?;
-        cookies.add_private(
+        jar.add_private(
             Cookie::build(STATE_COOKIE_NAME, state)
                 .same_site(SameSite::Lax)
                 .finish(),
