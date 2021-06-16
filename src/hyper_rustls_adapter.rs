@@ -126,7 +126,7 @@ impl Adapter for HyperRustlsAdapter {
         use crate::query::{header, param};
 
         let mut request = Request::post(&*config.provider().token_uri())
-            .header(ACCEPT, header::accept::ACCEPT_APPLICATION_JSON)
+            .header(ACCEPT, header::accept::APPLICATION_JSON)
             .header(CONTENT_TYPE, header::content_type::X_WWW_FORM_URLENCODED);
 
         let req_str = {

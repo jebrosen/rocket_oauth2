@@ -9,7 +9,7 @@ pub mod header {
         /// `application/json`, [JSON]-formatted data.
         ///
         /// [JSON]: https://datatracker.ietf.org/doc/html/rfc7159
-        pub const ACCEPT_APPLICATION_JSON: &str = "application/json";
+        pub const APPLICATION_JSON: &str = "application/json";
     }
 
     /// Common values of HTTP [`Content-Type`] header.
