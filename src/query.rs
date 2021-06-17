@@ -2,25 +2,18 @@
 
 /// Common constants for HTTP headers
 pub mod header {
-    /// Common values of HTTP [`Accept`] header.
+    /// `application/json` value of [`Accept`] header corresponding to [JSON]-formatted data.
     ///
     /// [`Accept`]: https://datatracker.ietf.org/doc/html/rfc7231#section-5.3.2
-    pub mod accept {
-        /// `application/json`, [JSON]-formatted data.
-        ///
-        /// [JSON]: https://datatracker.ietf.org/doc/html/rfc7159
-        pub const APPLICATION_JSON: &str = "application/json";
-    }
+    /// [JSON]: https://datatracker.ietf.org/doc/html/rfc7159
+    pub const APPLICATION_JSON: &str = "application/json";
 
-    /// Common values of HTTP [`Content-Type`] header.
+    /// `application/x-www-form-urlencoded` value of [`Content-Type`] header
+    /// corresponding to [form-based] data encoded into a URL.
     ///
     /// [`Content-Type`]: https://datatracker.ietf.org/doc/html/rfc7231#section-3.1.1.5
-    pub mod content_type {
-        /// `application/x-www-form-urlencoded`, [form-based] data encoded into a URL.
-        ///
-        /// [Form-based]: https://www.ietf.org/rfc/rfc1867
-        pub const X_WWW_FORM_URLENCODED: &str = "application/x-www-form-urlencoded";
-    }
+    /// [Form-based]: https://www.ietf.org/rfc/rfc1867
+    pub const X_WWW_FORM_URLENCODED: &str = "application/x-www-form-urlencoded";
 }
 
 /// Constants corresponding to URL parameter names
@@ -63,7 +56,6 @@ pub mod param {
 
     /// Common values of `response_type` parameter.
     pub mod response_type {
-
         /// `code`, response type for OAuth2 [Authorization Request].
         /// [Authorization Request]: https://datatracker.ietf.org/doc/html/rfc6749#section-4.1.1
         pub const CODE: &str = "code";
