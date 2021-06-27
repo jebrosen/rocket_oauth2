@@ -1,3 +1,9 @@
+# To try the example, copy this file to Rocket.toml and fill in the
+# client_id and client_secret.
+
+# See also `run_with_env_var.sh`, which uses an environment variable
+# instead of Rocket.toml.
+
 [default.oauth.github]
 auth_uri = "https://github.com/login/oauth/authorize"
 token_uri = "https://github.com/login/oauth/access_token"

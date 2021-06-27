@@ -51,6 +51,10 @@
 //! redirect_uri = "http://localhost:8000/auth/github"
 //! ```
 //!
+//! You can also use the `ROCKET_OAUTH` environment variable;
+//! see `examples/user_info_custom_provider/run_with_env_var.sh`
+//! for an example.
+//!
 //! Implement routes for a login URI and a redirect URI. Mount these routes
 //! and attach the [OAuth2 Fairing](OAuth2::fairing()):
 //!
