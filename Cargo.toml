@@ -1,6 +1,6 @@
 [package]
 name = "rocket_oauth2"
-version = "0.5.0-rc.1"
+version = "0.5.0-rc.2"
 description = "OAuth2 for Rocket applications"
 documentation = "https://docs.rs/rocket_oauth2/"
 homepage = "https://github.com/jebrosen/rocket_oauth2"
@@ -22,7 +22,7 @@ async-trait = "0.1.30"
 base64 = "0.13"
 log = "0.4.4"
 rand = { version = "0.8", default-features = false, features = ["std"] }
-rocket = { version = "0.5.0-rc.1", features = ["secrets"] }
+rocket = { version = "0.5.0-rc.2", features = ["secrets"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1.0"
 url = "2.0"
