@@ -1,10 +1,16 @@
 # rocket_oauth2
 
-[![crates.io](http://img.shields.io/crates/v/rocket_oauth2)](https://crates.io/crates/rocket_oauth2)
+![maintenance: passive](https://img.shields.io/badge/maintenance-passive-orange)
+[![crates.io](https://img.shields.io/crates/v/rocket_oauth2)](https://crates.io/crates/rocket_oauth2)
 [![docs.rs](https://docs.rs/rocket_oauth2/badge.svg)](https://docs.rs/rocket_oauth2/)
 
 `rocket_oauth2` helps set up an OAuth 2.0 client in [Rocket](https://rocket.rs)
 applications.
+
+## Major Versions
+
+* 0.4.x, compatible with `rocket` `0.4.x`, are based on the [`master` branch](https://github.com/jebrosen/rocket_oauth2/tree/master)
+* 0.5.0-rc.x, compatible with `rocket` `0.5.0-rc.x`, are based on the [`next` branch](https://github.com/jebrosen/rocket_oauth2/tree/next)
 
 ## Quickstart Example
 
