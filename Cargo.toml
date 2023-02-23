@@ -19,7 +19,7 @@ hyper_rustls_adapter = ["hyper", "hyper-rustls"]
 
 [dependencies]
 async-trait = "0.1.30"
-base64 = "0.13"
+base64 = "0.21"
 log = "0.4.4"
 rand = { version = "0.8", default-features = false, features = ["std"] }
 rocket = { version = "0.5.0-rc.1", features = ["secrets"] }
@@ -29,4 +29,4 @@ url = "2.0"
 
 # hyper-rustls adapter
 hyper = { version = "0.14", optional = true }
-hyper-rustls = { version = "0.22", optional = true }
+hyper-rustls = { version = "0.23", optional = true }

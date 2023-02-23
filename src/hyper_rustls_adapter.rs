@@ -1,5 +1,6 @@
 use std::convert::TryInto;
 
+use base64::prelude::{Engine as _, BASE64_STANDARD};
 use hyper::{
     body::HttpBody,
     header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE},
@@ -31,7 +32,13 @@ impl Default for HyperRustlsAdapter {
         Self {
             use_basic_auth: true,
             // TODO: consider making the root store configurable
-            client: Client::builder().build(hyper_rustls::HttpsConnector::with_native_roots()),
+            client: Client::builder().build(
+                hyper_rustls::HttpsConnectorBuilder::new()
+                    .with_native_roots()
+                    .https_or_http()
+                    .enable_http1()
+                    .build(),
+            ),
         }
     }
 }
@@ -146,8 +153,11 @@ impl Adapter for HyperRustlsAdapter {
             }
 
             if self.use_basic_auth {
-                let encoded =
-                    base64::encode(format!("{}:{}", config.client_id(), config.client_secret()));
+                let encoded = BASE64_STANDARD.encode(format!(
+                    "{}:{}",
+                    config.client_id(),
+                    config.client_secret()
+                ));
                 request = request.header(AUTHORIZATION, format!("Basic {}", encoded))
             } else {
                 ser.append_pair(param::CLIENT_ID, config.client_id());

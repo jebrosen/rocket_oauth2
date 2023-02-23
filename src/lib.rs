@@ -151,6 +151,7 @@ use std::fmt;
 use std::marker::PhantomData;
 use std::sync::Arc;
 
+use base64::prelude::{Engine as _, BASE64_URL_SAFE_NO_PAD};
 use log::{error, info, warn};
 use rocket::fairing::{AdHoc, Fairing};
 use rocket::form::{Form, FromForm};
@@ -173,7 +174,7 @@ fn generate_state(rng: &mut impl rand::RngCore) -> Result<String, Error> {
             String::from("Failed to generate random data"),
         )
     })?;
-    Ok(base64::encode_config(&buf, base64::URL_SAFE_NO_PAD))
+    Ok(BASE64_URL_SAFE_NO_PAD.encode(&buf))
 }
 
 /// The token types which can be exchanged with the token endpoint
