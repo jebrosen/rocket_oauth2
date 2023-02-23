@@ -232,7 +232,7 @@ macro_rules! providers {
 }
 
 providers! {
-    Discord: "https://discordapp.com/api/oauth2/authorize", "https://discordapp.com/api/oauth2/token",
+    Discord: "https://discord.com/oauth2/authorize", "https://discord.com/api/oauth2/token",
     Facebook: "https://www.facebook.com/v3.1/dialog/oauth", "https://graph.facebook.com/v3.1/oauth/access_token",
     GitHub: "https://github.com/login/oauth/authorize", "https://github.com/login/oauth/access_token",
     Google: "https://accounts.google.com/o/oauth2/v2/auth", "https://www.googleapis.com/oauth2/v4/token",
