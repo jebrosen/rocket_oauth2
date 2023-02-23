@@ -7,7 +7,7 @@ edition = "2018"
 
 [dependencies]
 anyhow = "1.0"
-hyper = "0.10"
+hyper = "0.14"
 hyper-sync-rustls = { version = ">=0.3.0-rc.4, <0.3.0-rc.18" }
 rocket = "0.4.5"
 rocket_oauth2 = { path = "../../", features = ["hyper_sync_rustls_adapter"] }
