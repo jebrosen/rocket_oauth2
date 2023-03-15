@@ -595,8 +595,7 @@ impl<K: 'static> OAuth2<K> {
                 }
             };
 
-            let rocket = Self::_init(rocket, hyper_rustls_adapter::HyperRustlsAdapter::default(), config);
-            Ok(rocket)
+            Ok(Self::_init(rocket, hyper_rustls_adapter::HyperRustlsAdapter::default(), config))
         })
     }
 
