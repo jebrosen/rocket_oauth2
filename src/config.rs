@@ -240,5 +240,5 @@ providers! {
     Reddit: "https://www.reddit.com/api/v1/authorize", "https://www.reddit.com/api/v1/access_token",
     Wikimedia: "https://meta.wikimedia.org/w/rest.php/oauth2/authorize", "https://meta.wikimedia.org/w/rest.php/oauth2/access_token",
     Yahoo: "https://api.login.yahoo.com/oauth2/request_auth", "https://api.login.yahoo.com/oauth2/get_token",
-    Twitter: "https://twitter.com/i/oauth2/authorize", "https://api.twitter.com/oauth2/token",
+    Twitter: "https://twitter.com/i/oauth2/authorize", "https://api.twitter.com/2/oauth2/token",
 }
