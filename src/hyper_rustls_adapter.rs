@@ -109,6 +109,12 @@ impl Adapter for HyperRustlsAdapter {
                 .append_pair(param::SCOPE, &scopes.join(" "));
         }
 
+        url.query_pairs_mut()
+            .append_pair(param::CODE_CHALLENGE, "challenge");
+
+        url.query_pairs_mut()
+            .append_pair(param::CODE_CHALLENGE_METHOD, "plain");
+
         // Request parameters must not be included more than once. This
         // adapter chooses to ignore duplicates instead of overwriting.
         for (name, value) in extra_params {
