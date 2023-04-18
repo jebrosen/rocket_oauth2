@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Added the `query` module, including constants for some commonly used
   header and parameter values for use by `Adapter` implementations.
+### Changed
+- Updated the `rocket` dependency to `0.5.0-rc.3`
 
 ## 0.5.0-rc.1 - 2021-06-09
 ### Changed
