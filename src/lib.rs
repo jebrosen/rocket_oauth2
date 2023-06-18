@@ -629,6 +629,7 @@ impl<K: 'static> OAuth2<K> {
     ///                 "client id".to_string(),
     ///                 "client secret".to_string(),
     ///                 Some("http://localhost:8000/auth".to_string()),
+    ///                 Some("My User Agent".to_string())
     ///             );
     ///             rocket.attach(OAuth2::<MyProvider>::custom(HyperRustlsAdapter::default(), config))
     ///         }))

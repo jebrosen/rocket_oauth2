@@ -3,8 +3,8 @@ use std::convert::TryInto;
 use base64::prelude::{Engine as _, BASE64_STANDARD};
 use hyper::{
     body::HttpBody,
-    header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE},
-    Body, Client, Request,
+    header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE, USER_AGENT},
+    Body, Client, Request
 };
 use rocket::http::ext::IntoOwned;
 use rocket::http::uri::Absolute;
@@ -135,6 +135,11 @@ impl Adapter for HyperRustlsAdapter {
         let mut request = Request::post(&*config.provider().token_uri())
             .header(ACCEPT, header::APPLICATION_JSON)
             .header(CONTENT_TYPE, header::X_WWW_FORM_URLENCODED);
+
+        if let Some(user_agent) = config.user_agent() {
+            request = request
+                .header(USER_AGENT, user_agent);
+        }
 
         let req_str = {
             let mut ser = UrlSerializer::new(String::new());

@@ -4,12 +4,14 @@ use std::fmt;
 use rocket::figment::{self, Error, Figment};
 
 /// Holds configuration for an OAuth application. This consists of the [Provider]
-/// details, a `client_id` and `client_secret`, and an optional `redirect_uri`.
+/// details, a `client_id` and `client_secret`, an optional `redirect_uri`, and an optional
+/// `user_agent`.
 pub struct OAuthConfig {
     provider: Box<dyn Provider>,
     client_id: String,
     client_secret: String,
     redirect_uri: Option<String>,
+    user_agent: Option<String>,
 }
 
 impl OAuthConfig {
@@ -24,20 +26,23 @@ impl OAuthConfig {
     /// let client_id = "...".to_string();
     /// let client_secret = "...".to_string();
     /// let redirect_uri = Some("http://localhost:8000/auth/github".to_string());
+    /// let user_agent = Some("My User Agent".to_string());
     ///
-    /// let config = OAuthConfig::new(provider, client_id, client_secret, redirect_uri);
+    /// let config = OAuthConfig::new(provider, client_id, client_secret, redirect_uri, user_agent);
     /// ```
     pub fn new(
         provider: impl Provider,
         client_id: String,
         client_secret: String,
         redirect_uri: Option<String>,
+        user_agent: Option<String>,
     ) -> OAuthConfig {
         OAuthConfig {
             provider: Box::new(provider),
             client_id,
             client_secret,
             redirect_uri,
+            user_agent
         }
     }
 
@@ -53,6 +58,7 @@ impl OAuthConfig {
     /// client_id = "..."
     /// client_secret = "..."
     /// redirect_uri = "http://localhost:8000/auth/github"
+    /// user_agent = "My User Agent"
     /// ```
     ///
     /// ## main.rs
@@ -80,6 +86,7 @@ impl OAuthConfig {
             client_id: String,
             client_secret: String,
             redirect_uri: Option<String>,
+            user_agent: Option<String>,
         }
 
         let conf: Config = figment.extract_inner(&format!("oauth.{}", name))?;
@@ -106,6 +113,7 @@ impl OAuthConfig {
             conf.client_id,
             conf.client_secret,
             conf.redirect_uri,
+            conf.user_agent
         ))
     }
 
@@ -128,6 +136,11 @@ impl OAuthConfig {
     pub fn redirect_uri(&self) -> Option<&str> {
         self.redirect_uri.as_deref()
     }
+
+    /// Get the user agent for this configuration.
+    pub fn user_agent(&self) -> Option<&str> {
+        self.user_agent.as_deref()
+    }
 }
 
 impl fmt::Debug for OAuthConfig {
@@ -137,6 +150,7 @@ impl fmt::Debug for OAuthConfig {
             .field("client_id", &self.client_id)
             .field("client_secret", &self.client_secret)
             .field("redirect_uri", &self.redirect_uri)
+            .field("user_agent", &self.user_agent)
             .finish()
     }
 }
