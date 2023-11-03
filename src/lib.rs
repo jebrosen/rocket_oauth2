@@ -90,9 +90,9 @@
 //! {
 //!     // Set a private cookie with the access token
 //!     cookies.add_private(
-//!         Cookie::build("token", token.access_token().to_string())
+//!         Cookie::build(("token", token.access_token().to_string()))
 //!             .same_site(SameSite::Lax)
-//!             .finish()
+//!             .build()
 //!     );
 //!     Redirect::to("/")
 //! }
@@ -697,9 +697,9 @@ impl<K: 'static> OAuth2<K> {
             .adapter
             .authorization_uri(&self.0.config, &state, scopes, extras)?;
         cookies.add_private(
-            Cookie::build(STATE_COOKIE_NAME, state)
+            Cookie::build((STATE_COOKIE_NAME, state))
                 .same_site(SameSite::Lax)
-                .finish(),
+                .build(),
         );
         Ok(Redirect::to(uri))
     }
