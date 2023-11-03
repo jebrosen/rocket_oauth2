@@ -428,7 +428,7 @@ impl<'r, K: 'static> FromRequest<'r> for TokenResponse<K> {
         let query = match request.uri().query() {
             Some(q) => q,
             None => {
-                return Outcome::Failure((
+                return Outcome::Error((
                     Status::BadRequest,
                     Error::new_from(
                         ErrorKind::ExchangeFailure,
@@ -450,7 +450,7 @@ impl<'r, K: 'static> FromRequest<'r> for TokenResponse<K> {
             Ok(p) => p,
             Err(e) => {
                 warn!("Failed to parse OAuth2 query string: {:?}", e);
-                return Outcome::Failure((
+                return Outcome::Error((
                     Status::BadRequest,
                     Error::new_from(ErrorKind::ExchangeFailure, format!("{:?}", e)),
                 ));
@@ -475,7 +475,7 @@ impl<'r, K: 'static> FromRequest<'r> for TokenResponse<K> {
                         error!("The OAuth2 state cookie was missing. It may have been blocked by the client?");
                     }
 
-                    return Outcome::Failure((
+                    return Outcome::Error((
                         Status::BadRequest,
                         Error::new_from(
                             ErrorKind::ExchangeFailure,
@@ -508,7 +508,7 @@ impl<'r, K: 'static> FromRequest<'r> for TokenResponse<K> {
             }
             Err(e) => {
                 warn!("OAuth2 token exchange failed: {}", e);
-                Outcome::Failure((Status::BadRequest, e))
+                Outcome::Error((Status::BadRequest, e))
             }
         }
     }
