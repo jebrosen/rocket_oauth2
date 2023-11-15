@@ -90,9 +90,9 @@
 //! {
 //!     // Set a private cookie with the access token
 //!     cookies.add_private(
-//!         Cookie::build("token", token.access_token().to_string())
+//!         Cookie::build(("token", token.access_token().to_string()))
 //!             .same_site(SameSite::Lax)
-//!             .finish()
+//!             .build()
 //!     );
 //!     Redirect::to("/")
 //! }
@@ -428,7 +428,7 @@ impl<'r, K: 'static> FromRequest<'r> for TokenResponse<K> {
         let query = match request.uri().query() {
             Some(q) => q,
             None => {
-                return Outcome::Failure((
+                return Outcome::Error((
                     Status::BadRequest,
                     Error::new_from(
                         ErrorKind::ExchangeFailure,
@@ -450,7 +450,7 @@ impl<'r, K: 'static> FromRequest<'r> for TokenResponse<K> {
             Ok(p) => p,
             Err(e) => {
                 warn!("Failed to parse OAuth2 query string: {:?}", e);
-                return Outcome::Failure((
+                return Outcome::Error((
                     Status::BadRequest,
                     Error::new_from(ErrorKind::ExchangeFailure, format!("{:?}", e)),
                 ));
@@ -475,7 +475,7 @@ impl<'r, K: 'static> FromRequest<'r> for TokenResponse<K> {
                         error!("The OAuth2 state cookie was missing. It may have been blocked by the client?");
                     }
 
-                    return Outcome::Failure((
+                    return Outcome::Error((
                         Status::BadRequest,
                         Error::new_from(
                             ErrorKind::ExchangeFailure,
@@ -508,7 +508,7 @@ impl<'r, K: 'static> FromRequest<'r> for TokenResponse<K> {
             }
             Err(e) => {
                 warn!("OAuth2 token exchange failed: {}", e);
-                Outcome::Failure((Status::BadRequest, e))
+                Outcome::Error((Status::BadRequest, e))
             }
         }
     }
@@ -697,9 +697,9 @@ impl<K: 'static> OAuth2<K> {
             .adapter
             .authorization_uri(&self.0.config, &state, scopes, extras)?;
         cookies.add_private(
-            Cookie::build(STATE_COOKIE_NAME, state)
+            Cookie::build((STATE_COOKIE_NAME, state))
                 .same_site(SameSite::Lax)
-                .finish(),
+                .build(),
         );
         Ok(Redirect::to(uri))
     }
