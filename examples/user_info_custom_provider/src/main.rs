@@ -1,4 +1,4 @@
-use rocket::http::{Cookie, CookieJar};
+use rocket::http::{Cookie, CookieJar, Status};
 use rocket::request::{self, FromRequest, Request};
 use rocket::response::Redirect;
 use rocket::{get, routes};
@@ -24,7 +24,7 @@ impl<'r> FromRequest<'r> for User {
             });
         }
 
-        request::Outcome::Forward(())
+        request::Outcome::Forward(Status::Unauthorized)
     }
 }
 
@@ -40,7 +40,7 @@ fn index_anonymous() -> &'static str {
 
 #[get("/logout")]
 fn logout(cookies: &CookieJar<'_>) -> Redirect {
-    cookies.remove(Cookie::named("username"));
+    cookies.remove(Cookie::from("username"));
     Redirect::to("/")
 }
 

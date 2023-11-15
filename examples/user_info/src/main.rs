@@ -1,6 +1,6 @@
 use anyhow::{Context, Error};
 use reqwest::header::{ACCEPT, AUTHORIZATION, USER_AGENT};
-use rocket::http::{Cookie, CookieJar, SameSite};
+use rocket::http::{Cookie, CookieJar, SameSite, Status};
 use rocket::request;
 use rocket::response::{Debug, Redirect};
 use rocket::{get, routes};
@@ -26,7 +26,7 @@ impl<'r> request::FromRequest<'r> for User {
             });
         }
 
-        request::Outcome::Forward(())
+        request::Outcome::Forward(Status::Unauthorized)
     }
 }
 
@@ -68,9 +68,9 @@ async fn github_callback(
 
     // Set a private cookie with the user's name, and redirect to the home page.
     cookies.add_private(
-        Cookie::build("username", user_info.name)
+        Cookie::build(("username", user_info.name))
             .same_site(SameSite::Lax)
-            .finish(),
+            .build(),
     );
     Ok(Redirect::to("/"))
 }
@@ -113,9 +113,9 @@ async fn google_callback(
 
     // Set a private cookie with the user's name, and redirect to the home page.
     cookies.add_private(
-        Cookie::build("username", real_name.to_string())
+        Cookie::build(("username", real_name.to_string()))
             .same_site(SameSite::Lax)
-            .finish(),
+            .build(),
     );
     Ok(Redirect::to("/"))
 }
@@ -152,9 +152,9 @@ async fn microsoft_callback(
 
     // Set a private cookie with the user's name, and redirect to the home page.
     cookies.add_private(
-        Cookie::build("username", user_info.display_name)
+        Cookie::build(("username", user_info.display_name))
             .same_site(SameSite::Lax)
-            .finish(),
+            .build(),
     );
     Ok(Redirect::to("/"))
 }
@@ -171,7 +171,7 @@ fn index_anonymous() -> &'static str {
 
 #[get("/logout")]
 fn logout(cookies: &CookieJar<'_>) -> Redirect {
-    cookies.remove(Cookie::named("username"));
+    cookies.remove(Cookie::from("username"));
     Redirect::to("/")
 }
 

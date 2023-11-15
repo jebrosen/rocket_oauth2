@@ -41,7 +41,13 @@ async fn post_install_callback(
     token: TokenResponse<GitHubUserInfo>,
     cookies: &CookieJar<'_>,
 ) -> Result<Redirect, Debug<Error>> {
-    let client = Client::builder().build(hyper_rustls::HttpsConnector::with_native_roots());
+    let client = Client::builder().build(
+        hyper_rustls::HttpsConnectorBuilder::new()
+            .with_native_roots()
+            .https_or_http()
+            .enable_http1()
+            .build(),
+    );
 
     // Use the token to retrieve the user's GitHub account information.
     let request = Request::get("https://api.github.com/user")
@@ -69,9 +75,9 @@ async fn post_install_callback(
 
     // Set a private cookie with the user's name, and redirect to the home page.
     cookies.add_private(
-        Cookie::build("username", user_info.name)
+        Cookie::build(("username", user_info.name))
             .same_site(SameSite::Lax)
-            .finish(),
+            .build(),
     );
     Ok(Redirect::to("/"))
 }

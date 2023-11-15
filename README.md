@@ -36,9 +36,9 @@ fn github_login(oauth2: OAuth2<GitHub>, cookies: &CookieJar<'_>) -> Redirect {
 fn github_callback(token: TokenResponse<GitHub>, cookies: &CookieJar<'_>) -> Redirect
 {
     cookies.add_private(
-        Cookie::build("token", token.access_token().to_string())
+        Cookie::build(("token", token.access_token().to_string()))
             .same_site(SameSite::Lax)
-            .finish()
+            .build()
     );
     Redirect::to("/")
 }
