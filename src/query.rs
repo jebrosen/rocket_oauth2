@@ -71,4 +71,10 @@ pub mod param {
     /// `state`, an opaque value used by the client to maintain state between the
     /// request and callback.
     pub const STATE: &str = "state";
+
+    /// `code_challenge`, the code challenge.
+    pub const CODE_CHALLENGE: &str = "code_challenge";
+
+    /// `code_challenge_method`, the code challenge method.
+    pub const CODE_CHALLENGE_METHOD: &str = "code_challenge_method";
 }
