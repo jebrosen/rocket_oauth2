@@ -1227,7 +1227,7 @@ dependencies = [
 
 [[package]]
 name = "rocket_oauth2"
-version = "0.5.0-rc.3"
+version = "0.5.0"
 dependencies = [
  "async-trait",
  "base64",
