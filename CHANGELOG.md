@@ -5,23 +5,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleased
-### Changed
-- Updated the `rocket` dependency to `0.5`
-
-## 0.5.0-rc.3 - 2023-11-15
-### Changed
-- Updated the `rocket` dependency to `0.5.0-rc.4`
-
-## 0.5.0-rc.2 - 2023-04-18
 ### Added
 - Added the `query` module, including constants for some commonly used
   header and parameter values for use by `Adapter` implementations.
 ### Changed
-- Updated the `rocket` dependency to `0.5.0-rc.3`
-
-## 0.5.0-rc.1 - 2021-06-09
-### Changed
-- Updated the `rocket` dependency to `0.5.0-rc.1`
+- Updated the `rocket` dependency to `0.5`
   - Refactored `rocket_oauth2` to support `async` and other changes in 0.5
     - Changed `Adapter` and impls to use `#[async_trait]`
     - Made `Adapter::exchange_code` and `OAuth2::refresh` into `async fn`s
@@ -31,22 +19,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Implemented `Sentinel` on request guards, so misconfiguration will be
     detected earlier at runtime.
 - Rewrote the primary example with `reqwest` and renamed it to `user_info`
-
 ### Removed
 - Removed support for specifying `provider` as a table with `auth_uri`
   and `token_uri` values. These values are no longer nested under `provider`.
-
 ### Migration Guide
-* If you specified `provider` as a table with `auth_uri` and `token_uri`,
+- If you specified `provider` as a table with `auth_uri` and `token_uri`,
   remove the intermediate `provider` table and move `auth_uri` and `token_uri`
   to the level `provider` was at.
-* Change references to `hyper_sync_rustls_adapter` to `hyper_rustls_adapter`,
+- Change references to `hyper_sync_rustls_adapter` to `hyper_rustls_adapter`,
   and `HyperSyncRustlsAdapter` with `HyperRustlsAdapter`.
-* Change calls to `OAuthConfig::from_config` to `OAuthConfig::from_figment`.
-* Add `#[async_trait::async_trait]` to `Adapter` implementations, and change
+- Change calls to `OAuthConfig::from_config` to `OAuthConfig::from_figment`.
+- Add `#[async_trait::async_trait]` to `Adapter` implementations, and change
   `exchange_code` to an `async fn` using an `async` HTTP client or a
   synchronous HTTP client wrapped in a `spawn_blocking` call.
-* Add `.await` after calls to `Adapter::exchange_code()` and
+- Add `.await` after calls to `Adapter::exchange_code()` and
   `OAuth2::refresh()`.
 
 ## 0.4.1 - 2020-09-23
