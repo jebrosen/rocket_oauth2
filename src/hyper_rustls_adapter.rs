@@ -1,11 +1,14 @@
 use std::convert::TryInto;
 
 use base64::prelude::{Engine as _, BASE64_STANDARD};
+use http_body_util::{BodyExt, Full};
 use hyper::{
-    body::HttpBody,
+    body::Bytes,
     header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE},
-    Body, Client, Request,
+    Request,
 };
+use hyper_util::client::legacy::Client;
+use hyper_util::rt::TokioExecutor;
 use rocket::http::ext::IntoOwned;
 use rocket::http::uri::Absolute;
 use url::form_urlencoded::Serializer as UrlSerializer;
@@ -24,7 +27,10 @@ use super::{Adapter, Error, ErrorKind, OAuthConfig, TokenRequest, TokenResponse}
 #[derive(Clone, Debug)]
 pub struct HyperRustlsAdapter {
     use_basic_auth: bool,
-    client: Client<hyper_rustls::HttpsConnector<hyper::client::HttpConnector>>,
+    client: Client<
+        hyper_rustls::HttpsConnector<hyper_util::client::legacy::connect::HttpConnector>,
+        Full<Bytes>,
+    >,
 }
 
 impl Default for HyperRustlsAdapter {
@@ -32,9 +38,10 @@ impl Default for HyperRustlsAdapter {
         Self {
             use_basic_auth: true,
             // TODO: consider making the root store configurable
-            client: Client::builder().build(
+            client: Client::builder(TokioExecutor::new()).build(
                 hyper_rustls::HttpsConnectorBuilder::new()
                     .with_native_roots()
+                    .expect("failed to load native root certificates")
                     .https_or_http()
                     .enable_http1()
                     .build(),
@@ -168,7 +175,7 @@ impl Adapter for HyperRustlsAdapter {
         };
 
         let request = request
-            .body(Body::from(req_str))
+            .body(Full::new(Bytes::from(req_str)))
             .map_err(|e| Error::new_from(ErrorKind::ExchangeFailure, e))?;
 
         let response = self
@@ -184,15 +191,17 @@ impl Adapter for HyperRustlsAdapter {
 
         let mut body = response.into_body();
         let mut bytes = vec![];
-        while let Some(chunk) = body.data().await {
-            let chunk = chunk.map_err(|e| Error::new_from(ErrorKind::ExchangeFailure, e))?;
-            if bytes.len() + chunk.len() > 2 * 1024 * 1024 {
-                return Err(Error::new_from(
-                    ErrorKind::ExchangeFailure,
-                    "Response body was too large.",
-                ));
+        while let Some(frame) = body.frame().await {
+            let frame = frame.map_err(|e| Error::new_from(ErrorKind::ExchangeFailure, e))?;
+            if let Ok(chunk) = frame.into_data() {
+                if bytes.len() + chunk.len() > 2 * 1024 * 1024 {
+                    return Err(Error::new_from(
+                        ErrorKind::ExchangeFailure,
+                        "Response body was too large.",
+                    ));
+                }
+                bytes.extend(chunk);
             }
-            bytes.extend(chunk);
         }
 
         let data: serde_json::Value = serde_json::from_slice(&bytes)

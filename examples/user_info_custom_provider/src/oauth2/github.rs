@@ -1,9 +1,12 @@
 use anyhow::{Context, Error};
+use http_body_util::{BodyExt, Empty};
 use hyper::{
-    body,
+    body::Bytes,
     header::{ACCEPT, AUTHORIZATION, USER_AGENT},
-    Body, Client, Request,
+    Request,
 };
+use hyper_util::client::legacy::Client;
+use hyper_util::rt::TokioExecutor;
 use rocket::fairing::{AdHoc, Fairing};
 use rocket::http::{Cookie, CookieJar, SameSite};
 use rocket::response::{Debug, Redirect};
@@ -41,9 +44,10 @@ async fn post_install_callback(
     token: TokenResponse<GitHubUserInfo>,
     cookies: &CookieJar<'_>,
 ) -> Result<Redirect, Debug<Error>> {
-    let client = Client::builder().build(
+    let client = Client::builder(TokioExecutor::new()).build(
         hyper_rustls::HttpsConnectorBuilder::new()
             .with_native_roots()
+            .context("failed to load native root certificates")?
             .https_or_http()
             .enable_http1()
             .build(),
@@ -54,7 +58,7 @@ async fn post_install_callback(
         .header(AUTHORIZATION, format!("token {}", token.access_token()))
         .header(ACCEPT, "application/vnd.github.v3+json")
         .header(USER_AGENT, "rocket_oauth2 demo application")
-        .body(Body::empty())
+        .body(Empty::<Bytes>::new())
         .expect("build GET request");
 
     let response = client
@@ -66,9 +70,12 @@ async fn post_install_callback(
         return Err(anyhow::anyhow!("got non-success status {}", response.status()).into());
     }
 
-    let body = body::to_bytes(response.into_body())
+    let body = response
+        .into_body()
+        .collect()
         .await
-        .context("failed to read response body")?;
+        .context("failed to read response body")?
+        .to_bytes();
 
     let user_info: GitHubUserInfo =
         serde_json::from_slice(&body).context("failed to deserialize response")?;
