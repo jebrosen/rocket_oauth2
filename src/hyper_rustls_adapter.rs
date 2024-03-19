@@ -15,7 +15,7 @@ use super::{Adapter, Error, ErrorKind, OAuthConfig, TokenRequest, TokenResponse}
 
 /// The default `Adapter` implementation. Uses `hyper` and `rustls` to perform the token exchange.
 ///
-/// By defualt, this adapter will use HTTP Basic Authentication. If this is
+/// By default, this adapter will use HTTP Basic Authentication. If this is
 /// not supported by your authorization server, the [`basic_auth`] method
 /// can be used to change this behavior.
 ///
