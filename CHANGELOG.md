@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+### Changed
+- Updated `hyper` and `hyper-rustls` dependencies
+### Migration Guide
+- `hyper-rustls` 0.27 now uses `aws-lc-rs` as the default cryptography
+  implementation. For continuity with previous releases and to match `rocket`,
+  this crate enables the `ring` feature flag instead. The cryptography
+  provider that is used can be changed by calling
+  [`rustls::crypto::CryptoProvider::install_default`](https://docs.rs/rustls/latest/rustls/crypto/struct.CryptoProvider.html#using-the-per-process-default-cryptoprovider)
+  early in application startup. Notably, you may need to make an
+  explicit choice if your application or a dependency uses `hyper-rustls`
+  with the default features enabled, making both `aws-lc-rs` and `ring`
+  available.
+
 ## 0.5.0 - 2023-11-22
 ### Added
 - Added the `query` module, including constants for some commonly used
