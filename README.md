@@ -7,11 +7,6 @@
 `rocket_oauth2` helps set up an OAuth 2.0 client in [Rocket](https://rocket.rs)
 applications.
 
-## Major Versions
-
-* 0.4.x, compatible with `rocket` `0.4.x`, are based on the previous [`master` branch](https://github.com/jebrosen/rocket_oauth2/tree/master)
-* 0.5.x, compatible with `rocket` `0.5.x`, are based on the newer [`main` branch](https://github.com/jebrosen/rocket_oauth2/tree/main)
-
 ## Quickstart Example
 
 For more detailed examples and explanations, see the crate documentation and the

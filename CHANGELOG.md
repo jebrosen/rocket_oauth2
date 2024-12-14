@@ -18,6 +18,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   with the default features enabled, making both `aws-lc-rs` and `ring`
   available.
 
+## GitHub - 2024-12-13
+### Added
+- Added GitHub actions workflow
+### Removed
+- Removed all public branches besides `main` (the current versions `0.5.x`)
+  and most version-related references. Please strongly consider upgrading
+  if you are using one of these older unmaintained versions.
+
 ## 0.5.0 - 2023-11-22
 ### Added
 - Added the `query` module, including constants for some commonly used
