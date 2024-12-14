@@ -82,6 +82,7 @@
 //!     cookies.add_private(
 //!         Cookie::build(("token", token.access_token().to_string()))
 //!             .same_site(SameSite::Lax)
+//!             .secure(true)
 //!             .build()
 //!     );
 //!     Redirect::to("/")
@@ -689,6 +690,7 @@ impl<K: 'static> OAuth2<K> {
         cookies.add_private(
             Cookie::build((STATE_COOKIE_NAME, state))
                 .same_site(SameSite::Lax)
+                .secure(true)
                 .build(),
         );
         Ok(Redirect::to(uri))
