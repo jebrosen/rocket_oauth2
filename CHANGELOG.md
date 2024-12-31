@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 ### Changed
 - Updated `hyper` and `hyper-rustls` dependencies
+- Removed the value of `client_secret` from `OAuthConfig`'s `Debug` output
 ### Migration Guide
 - `hyper-rustls` 0.27 now uses `aws-lc-rs` as the default cryptography
   implementation. For continuity with previous releases and to match `rocket`,

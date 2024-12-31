@@ -135,7 +135,7 @@ impl fmt::Debug for OAuthConfig {
         f.debug_struct("OAuthConfig")
             .field("provider", &(..))
             .field("client_id", &self.client_id)
-            .field("client_secret", &self.client_secret)
+            .field("client_secret", &(..))
             .field("redirect_uri", &self.redirect_uri)
             .finish()
     }
