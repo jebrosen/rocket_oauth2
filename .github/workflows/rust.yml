@@ -2,7 +2,7 @@ name: Rust
 
 on:
   push:
-    branches: ["main"]
+    branches: ["main", "ci/**"]
   pull_request:
     branches: ["main"]
 
@@ -11,7 +11,10 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  test:
+  ci:
+    strategy:
+      matrix:
+        task: ["build", "test", "build:tls_compat_check"]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -22,9 +25,5 @@ jobs:
             ${{ env.CARGO_HOME }}/registry/index/
             ${{ env.CARGO_HOME }}/registry/cache/
             ${{ env.CARGO_HOME }}/git/db/
-      - name: Build
-        run: cargo build --workspace
-      - name: Run tests
-        run: cargo test --workspace
-      - name: Build rocket_tls_compat_check
-        run: cd rocket_tls_compat_check && cargo build --workspace
+      - uses: jdx/mise-action@v2
+      - run: mise run ${{ matrix.task }}
