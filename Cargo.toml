@@ -21,7 +21,7 @@ hyper_rustls_adapter = ["http-body-util", "hyper", "hyper-rustls", "hyper-util"]
 async-trait = "0.1.30"
 base64 = "0.22"
 log = "0.4.4"
-rand = { version = "0.8", default-features = false, features = ["std"] }
+rand = { version = "0.9", default-features = false, features = ["thread_rng"] }
 rocket = { version = "0.5", features = ["secrets"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1.0"

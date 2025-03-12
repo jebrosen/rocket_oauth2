@@ -156,15 +156,10 @@ const STATE_COOKIE_NAME: &str = "rocket_oauth2_state";
 
 // Random generation of state for defense against CSRF.
 // See RFC 6749 §10.12 for more details.
-fn generate_state(rng: &mut impl rand::RngCore) -> Result<String, Error> {
+fn generate_state(rng: &mut impl rand::CryptoRng) -> String {
     let mut buf = [0; 16]; // 128 bits
-    rng.try_fill_bytes(&mut buf).map_err(|_| {
-        Error::new_from(
-            ErrorKind::Other,
-            String::from("Failed to generate random data"),
-        )
-    })?;
-    Ok(BASE64_URL_SAFE_NO_PAD.encode(&buf))
+    rng.fill_bytes(&mut buf);
+    BASE64_URL_SAFE_NO_PAD.encode(&buf)
 }
 
 /// The token types which can be exchanged with the token endpoint
@@ -511,8 +506,14 @@ fn sentinel_abort<K: 'static>(rocket: &Rocket<Ignite>, wrapper: &str) -> bool {
     }
 
     let type_name = std::any::type_name::<K>();
-    error!("{}<{}> was used in a mounted route without attaching a matching fairing", wrapper, type_name);
-    info!("attach either OAuth2::<{0}>::fairing() or OAuth2::<{0}>::custom()", type_name);
+    error!(
+        "{}<{}> was used in a mounted route without attaching a matching fairing",
+        wrapper, type_name
+    );
+    info!(
+        "attach either OAuth2::<{0}>::fairing() or OAuth2::<{0}>::custom()",
+        type_name
+    );
     true
 }
 
@@ -585,7 +586,11 @@ impl<K: 'static> OAuth2<K> {
                 }
             };
 
-            Ok(Self::_init(rocket, hyper_rustls_adapter::HyperRustlsAdapter::default(), config))
+            Ok(Self::_init(
+                rocket,
+                hyper_rustls_adapter::HyperRustlsAdapter::default(),
+                config,
+            ))
         })
     }
 
@@ -681,7 +686,7 @@ impl<K: 'static> OAuth2<K> {
         scopes: &[&str],
         extras: &[(&str, &str)],
     ) -> Result<Redirect, Error> {
-        let state = generate_state(&mut rand::thread_rng())?;
+        let state = generate_state(&mut rand::rng());
         let uri = self
             .0
             .adapter
