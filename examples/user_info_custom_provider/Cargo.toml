@@ -3,7 +3,7 @@ name = "user_info_custom_provider"
 version = "0.0.0"
 authors = ["Chris Zehner <cbzehner@gmail.com>"]
 publish = false
-edition = "2018"
+edition = "2024"
 
 [dependencies]
 anyhow = "1.0"

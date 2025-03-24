@@ -3,7 +3,7 @@ name = "user_info"
 version = "0.0.0"
 authors = ["jeb <jeb@jebrosen.com>"]
 publish = false
-edition = "2018"
+edition = "2024"
 
 [dependencies]
 anyhow = "1.0"

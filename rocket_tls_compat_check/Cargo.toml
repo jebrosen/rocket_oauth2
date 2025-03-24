@@ -3,7 +3,7 @@ name = "rocket_tls_compat_check"
 version = "0.0.0"
 authors = ["Jeb Rosen <jeb@jebrosen.com>"]
 publish = false
-edition = "2018"
+edition = "2024"
 
 # Separate workspace, to assist testing multiple versions of hyper-sync-rustls and ring.
 # (Each workspace can only resolve to a single, unified version of each crate within a major version)

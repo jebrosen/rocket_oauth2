@@ -6,6 +6,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 ### Changed
+- Updated to rust edition `2024` and explicit minimum rust version `1.85`
 - Updated `hyper` and `hyper-rustls` dependencies
 - Removed the value of `client_secret` from `OAuthConfig`'s `Debug` output
 ### Migration Guide

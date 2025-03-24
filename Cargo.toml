@@ -8,7 +8,8 @@ repository = "https://github.com/jebrosen/rocket_oauth2"
 authors = ["Jeb Rosen <jeb@jebrosen.com>"]
 license = "MIT/Apache-2.0"
 readme = "README.md"
-edition = "2018"
+edition = "2024"
+rust-version = "1.85"
 
 [workspace]
 members = ["examples/user_info", "examples/user_info_custom_provider"]
