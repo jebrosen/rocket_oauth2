@@ -1,8 +1,6 @@
 tools.rust = "stable"
 tasks.outdated = "cargo outdated --workspace --root-deps-only"
 tasks.build = "cargo build --workspace"
-tasks."build:tls_compat_check".dir = "rocket_tls_compat_check"
-tasks."build:tls_compat_check".run = "cargo build --workspace"
 tasks.test = "cargo test --workspace"
 tasks.doc = "cargo doc --open"
 tasks.clean = "cargo clean"
