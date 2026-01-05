@@ -464,7 +464,7 @@ impl<'r, K: 'static> FromRequest<'r> for TokenResponse<K> {
                         Status::BadRequest,
                         Error::new_from(
                             ErrorKind::ExchangeFailure,
-                            "The OAuth2 state returned from the server did match the stored state.",
+                            "The OAuth2 state returned from the server did not match the stored state.",
                         ),
                     ));
                 }
